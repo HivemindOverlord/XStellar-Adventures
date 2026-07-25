@@ -28,6 +28,7 @@ export function grantBattleRewards(state: BattleState): Record<string, BattleRew
       const won = (c.side === "party") === partyWon;
       const amount = won ? xpForVictory(opponentLevel) : xpForDefeat(opponentLevel);
       rewards[c.id] = applyXp(c.character, amount);
+      c.character.winStreak = won ? c.character.winStreak + 1 : 0;
     }
   } else if (state.phase === "fled") {
     const fledId = state.log[state.log.length - 1]?.actorId;

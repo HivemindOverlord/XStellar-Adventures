@@ -42,6 +42,7 @@ export async function persistCharacterProgress(character: Character): Promise<vo
     data: {
       level: character.level,
       xp: character.xp,
+      winStreak: character.winStreak,
       maxHp: character.stats.maxHp,
       hp: character.stats.maxHp,
       maxMp: character.stats.maxMp,
@@ -65,6 +66,7 @@ type CharacterRow = {
   jobClass: string;
   level: number;
   xp: number;
+  winStreak: number;
   maxHp: number;
   hp: number;
   maxMp: number;
@@ -89,6 +91,7 @@ function toSharedCharacter(row: CharacterRow): Character {
     jobClass,
     level: row.level,
     xp: row.xp,
+    winStreak: row.winStreak,
     spriteKey: row.spriteKey,
     skillIds: CLASS_SKILLS[jobClass] ?? [],
     inventory: (row.inventory as Record<string, number>) ?? {},
