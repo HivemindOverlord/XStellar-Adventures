@@ -1,0 +1,127 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #10081f;
+  color: #f2f0ff;
+  display: flex;
+  justify-content: center;
+}
+
+#root {
+  width: 100%;
+  max-width: 800px;
+  padding: 24px;
+}
+
+.auth-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10vh;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 280px;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.auth-form input {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #4a3a70;
+  background: #1c1233;
+  color: inherit;
+}
+
+.auth-error {
+  color: #ff6b6b;
+}
+
+button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #6c4bd6;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-toggle {
+  background: transparent;
+  color: #b6a6f0;
+  font-weight: 400;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.find-match {
+  display: flex;
+  justify-content: center;
+  margin-top: 20vh;
+}
+
+.battle-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.phaser-container canvas {
+  border-radius: 12px;
+  border: 1px solid #4a3a70;
+}
+
+.battle-ui {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.battle-status {
+  font-weight: 600;
+}
+
+.battle-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.battle-log {
+  list-style: none;
+  padding: 12px;
+  margin: 0;
+  background: #1c1233;
+  border-radius: 8px;
+  border: 1px solid #4a3a70;
+  min-height: 100px;
+  font-size: 14px;
+}

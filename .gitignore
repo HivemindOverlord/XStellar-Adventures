@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+server/prisma/dev.db
+server/prisma/dev.db-journal
+.vscode/
+.idea/
