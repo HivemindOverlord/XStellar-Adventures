@@ -4,3 +4,4 @@ export * from "./auth.js";
 export * from "./events.js";
 export * from "./content.js";
 export * from "./progression.js";
+export * from "./equipment.js";

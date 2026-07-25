@@ -51,6 +51,9 @@ export async function persistCharacterProgress(character: Character): Promise<vo
       magic: character.stats.magic,
       speed: character.stats.speed,
       inventory: character.inventory as Prisma.InputJsonValue,
+      equippedWeaponId: character.equippedWeaponId ?? null,
+      equippedArmorId: character.equippedArmorId ?? null,
+      equippedAccessoryId: character.equippedAccessoryId ?? null,
     },
   });
 }
@@ -72,6 +75,9 @@ type CharacterRow = {
   speed: number;
   spriteKey: string;
   inventory: Prisma.JsonValue;
+  equippedWeaponId: string | null;
+  equippedArmorId: string | null;
+  equippedAccessoryId: string | null;
 };
 
 function toSharedCharacter(row: CharacterRow): Character {
@@ -86,6 +92,9 @@ function toSharedCharacter(row: CharacterRow): Character {
     spriteKey: row.spriteKey,
     skillIds: CLASS_SKILLS[jobClass] ?? [],
     inventory: (row.inventory as Record<string, number>) ?? {},
+    equippedWeaponId: row.equippedWeaponId ?? undefined,
+    equippedArmorId: row.equippedArmorId ?? undefined,
+    equippedAccessoryId: row.equippedAccessoryId ?? undefined,
     stats: {
       maxHp: row.maxHp,
       hp: row.maxHp,
