@@ -1,4 +1,7 @@
-import type { BattleAction, BattleLogEntry, BattleState, Combatant } from "@xstellar/shared";
+import type { BattleAction, BattleLogEntry, BattleState, Combatant, Item, Skill } from "@xstellar/shared";
+import { ITEMS, SKILLS } from "@xstellar/shared";
+
+const BUFF_DURATION_TURNS = 3;
 
 export function createBattle(battleId: string, combatants: Combatant[]): BattleState {
   const turnOrder = [...combatants]
@@ -43,6 +46,10 @@ export function applyAction(state: BattleState, action: BattleAction): BattleSta
 
 function resolveAction(state: BattleState, actor: Combatant, action: BattleAction): BattleLogEntry {
   actor.isDefending = false;
+  if (actor.attackBuff) {
+    actor.attackBuff.turnsRemaining -= 1;
+    if (actor.attackBuff.turnsRemaining <= 0) actor.attackBuff = undefined;
+  }
 
   switch (action.type) {
     case "attack": {
@@ -75,16 +82,110 @@ function resolveAction(state: BattleState, actor: Combatant, action: BattleActio
         result: `${actor.character.name} flees from battle`,
       };
     }
-    case "skill":
-    case "item":
+    case "skill": {
+      const skill = requireSkill(actor, action.skillId);
+      return resolveSkill(state, actor, action, skill);
+    }
+    case "item": {
+      return resolveItem(state, actor, action);
+    }
     default: {
-      throw new IllegalActionError(`Action type "${action.type}" is not yet supported`);
+      throw new IllegalActionError(`Action type "${action.type}" is not supported`);
     }
   }
 }
 
+function requireSkill(actor: Combatant, skillId: string | undefined): Skill {
+  const skill = skillId ? SKILLS[skillId] : undefined;
+  if (!skill || !actor.character.skillIds.includes(skill.id)) {
+    throw new IllegalActionError("You don't know that skill");
+  }
+  if (actor.character.stats.mp < skill.mpCost) {
+    throw new IllegalActionError(`Not enough MP to use ${skill.name}`);
+  }
+  return skill;
+}
+
+function resolveSkill(state: BattleState, actor: Combatant, action: BattleAction, skill: Skill): BattleLogEntry {
+  actor.character.stats.mp -= skill.mpCost;
+
+  if (skill.kind === "heal") {
+    const healing = applyHeal(actor, skill.power);
+    return {
+      turn: state.turn,
+      actorId: actor.id,
+      action,
+      result: `${actor.character.name} casts ${skill.name}, healing ${healing} HP`,
+      healing,
+    };
+  }
+
+  const target = requireTarget(state, action.targetId);
+  const damage = Math.round(computeDamage(actor, target, skill.kind) * skill.power);
+  applyDamage(target, damage);
+  return {
+    turn: state.turn,
+    actorId: actor.id,
+    action,
+    result: `${actor.character.name} uses ${skill.name} on ${target.character.name} for ${damage} damage`,
+    damage,
+  };
+}
+
+function resolveItem(state: BattleState, actor: Combatant, action: BattleAction): BattleLogEntry {
+  const item = action.itemId ? ITEMS[action.itemId] : undefined;
+  const owned = item ? (actor.character.inventory[item.id] ?? 0) : 0;
+  if (!item || owned <= 0) {
+    throw new IllegalActionError("You don't have that item");
+  }
+  actor.character.inventory[item.id] = owned - 1;
+
+  if (item.kind === "heal") {
+    const healing = applyHeal(actor, item.power);
+    return {
+      turn: state.turn,
+      actorId: actor.id,
+      action,
+      result: `${actor.character.name} uses ${item.name}, healing ${healing} HP`,
+      healing,
+    };
+  }
+
+  if (item.kind === "buff") {
+    actor.attackBuff = { amount: item.power, turnsRemaining: BUFF_DURATION_TURNS };
+    return {
+      turn: state.turn,
+      actorId: actor.id,
+      action,
+      result: `${actor.character.name} uses ${item.name}, sharpening their next attacks`,
+    };
+  }
+
+  return resolveDamageItem(state, actor, action, item);
+}
+
+function resolveDamageItem(state: BattleState, actor: Combatant, action: BattleAction, item: Item): BattleLogEntry {
+  const target = requireTarget(state, action.targetId);
+  const damage = Math.max(1, Math.round(item.power - target.character.stats.defense / 4));
+  applyDamage(target, damage);
+  return {
+    turn: state.turn,
+    actorId: actor.id,
+    action,
+    result: `${actor.character.name} throws ${item.name} at ${target.character.name} for ${damage} damage`,
+    damage,
+  };
+}
+
+function applyHeal(target: Combatant, amount: number): number {
+  const before = target.character.stats.hp;
+  target.character.stats.hp = Math.min(target.character.stats.maxHp, before + amount);
+  return target.character.stats.hp - before;
+}
+
 function computeDamage(attacker: Combatant, defender: Combatant, kind: "physical" | "magical"): number {
-  const offense = kind === "physical" ? attacker.character.stats.attack : attacker.character.stats.magic;
+  const buff = kind === "physical" ? (attacker.attackBuff?.amount ?? 0) : 0;
+  const offense = (kind === "physical" ? attacker.character.stats.attack : attacker.character.stats.magic) + buff;
   const defense = defender.character.stats.defense;
   const guardMultiplier = defender.isDefending ? 0.5 : 1;
   const raw = offense - defense / 2;
@@ -136,4 +237,42 @@ function checkOutcome(state: BattleState): "victory" | "defeat" | null {
   if (!enemyAlive) return "victory";
   if (!partyAlive) return "defeat";
   return null;
+}
+
+export function appendNote(state: BattleState, actorId: string, message: string): BattleState {
+  const entry: BattleLogEntry = {
+    turn: state.turn,
+    actorId,
+    action: { type: "defend", actorId },
+    result: message,
+  };
+  return { ...state, log: [...state.log, entry] };
+}
+
+export function forfeitBattle(state: BattleState, actorId: string): BattleState {
+  if (state.phase !== "in-progress") {
+    return state;
+  }
+  const actor = findCombatant(state, actorId);
+  if (!actor) {
+    return state;
+  }
+
+  actor.isDefeated = true;
+  actor.character.stats.hp = 0;
+
+  const entry: BattleLogEntry = {
+    turn: state.turn,
+    actorId: actor.id,
+    action: { type: "flee", actorId },
+    result: `${actor.character.name} disconnected and forfeits the match`,
+  };
+  const nextState: BattleState = {
+    ...state,
+    combatants: state.combatants.map((c) => (c.id === actor.id ? actor : c)),
+    log: [...state.log, entry],
+  };
+
+  const outcome = checkOutcome(nextState) ?? "defeat";
+  return { ...nextState, phase: outcome, activeCombatantId: null };
 }

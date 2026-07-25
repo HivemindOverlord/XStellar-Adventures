@@ -1,18 +1,35 @@
-import type { BattleAction, BattleState } from "@xstellar/shared";
+import type { BattleAction, BattleReward, BattleState, Character } from "@xstellar/shared";
+import { ITEMS, SKILLS, xpToNextLevel } from "@xstellar/shared";
+
+interface ActionExtra {
+  skillId?: string;
+  itemId?: string;
+}
 
 interface BattleUIProps {
   state: BattleState;
   isMyTurn: boolean;
-  onAction: (action: BattleAction["type"]) => void;
+  myCharacter: Character;
+  reward?: BattleReward;
+  onAction: (type: BattleAction["type"], extra?: ActionExtra) => void;
 }
 
-export function BattleUI({ state, isMyTurn, onAction }: BattleUIProps) {
+export function BattleUI({ state, isMyTurn, myCharacter, reward, onAction }: BattleUIProps) {
   const canAct = isMyTurn && state.phase === "in-progress";
+  const knownSkills = myCharacter.skillIds.map((id) => SKILLS[id]).filter((skill) => skill !== undefined);
+  const carriedItems = Object.entries(myCharacter.inventory)
+    .filter(([, count]) => count > 0)
+    .map(([id, count]) => ({ item: ITEMS[id], count }))
+    .filter((entry): entry is { item: NonNullable<typeof entry.item>; count: number } => entry.item !== undefined);
 
   return (
     <div className="battle-ui">
       <div className="battle-status">
         Turn {state.turn} — {describePhase(state.phase)}
+      </div>
+
+      <div className="battle-level">
+        Lv {myCharacter.level} · {myCharacter.xp}/{xpToNextLevel(myCharacter.level)} XP
       </div>
 
       <div className="battle-actions">
@@ -22,10 +39,30 @@ export function BattleUI({ state, isMyTurn, onAction }: BattleUIProps) {
         <button disabled={!canAct} onClick={() => onAction("defend")}>
           Defend
         </button>
+        {knownSkills.map((skill) => (
+          <button
+            key={skill.id}
+            disabled={!canAct || myCharacter.stats.mp < skill.mpCost}
+            onClick={() => onAction("skill", { skillId: skill.id })}
+          >
+            {skill.name} ({skill.mpCost} MP)
+          </button>
+        ))}
+        {carriedItems.map(({ item, count }) => (
+          <button key={item.id} disabled={!canAct} onClick={() => onAction("item", { itemId: item.id })}>
+            {item.name} ×{count}
+          </button>
+        ))}
         <button disabled={!canAct} onClick={() => onAction("flee")}>
           Flee
         </button>
       </div>
+
+      {reward && (
+        <div className="battle-reward">
+          +{reward.xpGained} XP{reward.leveledUp ? ` — Level up! Now level ${reward.newLevel}` : ""}
+        </div>
+      )}
 
       <ul className="battle-log">
         {state.log

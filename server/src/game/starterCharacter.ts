@@ -1,5 +1,7 @@
 import type { Character } from "@xstellar/shared";
+import { CLASS_SKILLS, STARTER_INVENTORY } from "@xstellar/shared";
 import { prisma } from "../db/prisma.js";
+import type { Prisma } from "@prisma/client";
 
 const STARTER_STATS = {
   maxHp: 60,
@@ -26,6 +28,7 @@ export async function getOrCreateStarterCharacter(userId: string, username: stri
       level: 1,
       xp: 0,
       spriteKey: "hero_warrior",
+      inventory: STARTER_INVENTORY as Prisma.InputJsonValue,
       ...STARTER_STATS,
     },
   });
@@ -33,7 +36,26 @@ export async function getOrCreateStarterCharacter(userId: string, username: stri
   return toSharedCharacter(created);
 }
 
-function toSharedCharacter(row: {
+export async function persistCharacterProgress(character: Character): Promise<void> {
+  await prisma.character.update({
+    where: { id: character.id },
+    data: {
+      level: character.level,
+      xp: character.xp,
+      maxHp: character.stats.maxHp,
+      hp: character.stats.maxHp,
+      maxMp: character.stats.maxMp,
+      mp: character.stats.maxMp,
+      attack: character.stats.attack,
+      defense: character.stats.defense,
+      magic: character.stats.magic,
+      speed: character.stats.speed,
+      inventory: character.inventory as Prisma.InputJsonValue,
+    },
+  });
+}
+
+type CharacterRow = {
   id: string;
   ownerId: string;
   name: string;
@@ -49,21 +71,26 @@ function toSharedCharacter(row: {
   magic: number;
   speed: number;
   spriteKey: string;
-}): Character {
+  inventory: Prisma.JsonValue;
+};
+
+function toSharedCharacter(row: CharacterRow): Character {
+  const jobClass = row.jobClass as Character["jobClass"];
   return {
     id: row.id,
     ownerId: row.ownerId,
     name: row.name,
-    jobClass: row.jobClass as Character["jobClass"],
+    jobClass,
     level: row.level,
     xp: row.xp,
     spriteKey: row.spriteKey,
-    skillIds: [],
+    skillIds: CLASS_SKILLS[jobClass] ?? [],
+    inventory: (row.inventory as Record<string, number>) ?? {},
     stats: {
       maxHp: row.maxHp,
-      hp: row.hp,
+      hp: row.maxHp,
       maxMp: row.maxMp,
-      mp: row.mp,
+      mp: row.maxMp,
       attack: row.attack,
       defense: row.defense,
       magic: row.magic,

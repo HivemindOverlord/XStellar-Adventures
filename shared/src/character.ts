@@ -20,6 +20,7 @@ export interface Character {
   xp: number;
   stats: Stats;
   skillIds: string[];
+  inventory: Record<string, number>;
   spriteKey: string;
 }
 
@@ -30,4 +31,12 @@ export interface Skill {
   power: number;
   target: "single-enemy" | "all-enemies" | "single-ally" | "self";
   kind: "physical" | "magical" | "heal";
+}
+
+export interface Item {
+  id: string;
+  name: string;
+  power: number;
+  target: "single-enemy" | "self";
+  kind: "damage" | "heal" | "buff";
 }
