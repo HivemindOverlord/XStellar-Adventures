@@ -9,7 +9,7 @@ import type {
 import { verifyToken } from "../auth/jwt.js";
 import { getOrCreateStarterCharacter, persistCharacterProgress } from "./starterCharacter.js";
 import { appendNote, applyAction, createBattle, forfeitBattle, IllegalActionError } from "./battleEngine.js";
-import { enqueue, removeBySocketId, type QueuedPlayer } from "./matchmaking.js";
+import { enqueue, removeBySocketId, type MatchedPair, type QueuedPlayer } from "./matchmaking.js";
 import { grantBattleRewards } from "./progression.js";
 import { createBotOpponent, isBotCharacter } from "./botCharacter.js";
 import { chooseBotAction } from "./botAi.js";
@@ -90,11 +90,14 @@ async function handleQueueJoin(io: AppServer, socket: AppSocket): Promise<void> 
   const character = await getOrCreateStarterCharacter(socket.data.userId, socket.data.username);
   socket.emit("queue:joined");
 
-  const match = enqueue({ socketId: socket.id, userId: socket.data.userId, character }, (lonePlayer) => {
-    void startBotBattle(io, lonePlayer);
-  });
-  if (!match) return;
+  enqueue(
+    { socketId: socket.id, userId: socket.data.userId, character },
+    (lonePlayer) => void startBotBattle(io, lonePlayer),
+    (match) => startHumanBattle(io, match),
+  );
+}
 
+function startHumanBattle(io: AppServer, match: MatchedPair): void {
   const [playerA, playerB] = match.players;
   // Side is a fixed slot for this battle instance ("party" = first queued), not an
   // ownership label — each client renders its own character by matching ownerId.
