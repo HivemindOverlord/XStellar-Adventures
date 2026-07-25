@@ -72,11 +72,11 @@ See [CLOUD_SETUP.md](./CLOUD_SETUP.md) for the one-time setup (Neon, Railway, Ve
 1. Register / log in.
 2. Click **Find Match** — the server queues you until a second player joins.
 3. Each player is auto-granted a starter character on first match.
-4. Classic turn-based combat: turns are ordered by Speed; each player chooses Attack, Defend, or Flee on their turn.
-5. Battle ends in victory, defeat, or a fled match.
+4. Classic turn-based combat: turns are ordered by Speed; each player chooses Attack, Defend, Skill, Item, or Flee on their turn.
+5. Battle ends in victory, defeat, or a fled match — winners and losers both earn XP, and characters level up (with stat growth) and keep their inventory between matches.
+6. If a player disconnects mid-battle, they have 45 seconds to reconnect and resume before forfeiting.
 
 This is an early scaffold. Notable things intentionally left as follow-up work:
-- Skill/item actions (`BattleAction` types `skill`/`item` are defined but not yet implemented server-side)
-- Persisting characters beyond the auto-created starter, leveling, and XP rewards after battle
 - Real sprite/tileset art (battle scene currently renders placeholder rectangles)
-- Reconnect handling if a player disconnects mid-battle
+- A full class/specialization system (currently 4 fixed job classes with one skill each)
+- Equipment/gear beyond the starting consumable items
