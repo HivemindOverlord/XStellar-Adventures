@@ -12,12 +12,9 @@ One-time manual steps to wire this repo up to Neon, Railway, Vercel, and Google 
 
 1. In Railway, **New Project → Deploy from GitHub repo**, pick `hivemindoverlord/XStellar-Adventures`.
 2. When Railway asks for a root directory / working directory, set it to `server`. If it doesn't ask upfront, set it under **Settings → Root Directory**.
-3. Set the build/start commands (Settings → Deploy):
-   - Build command: `npm install --prefix .. && npm run build -w shared && npm run build -w server` (the server imports `@xstellar/shared`, so the workspace needs installing from the repo root, not just `server/`)
-
-     If Railway only lets you set a root directory *and* doesn't let you `cd ..`, instead leave root directory unset (repo root) and use:
-     - Build command: `npm install && npm run build -w shared && npm run build -w server`
-     - Start command: `npm run start -w server` — but first add `"start": "node dist/index.js"` is already in `server/package.json`, so this works as-is.
+3. Leave root directory unset (repo root) and set the build/start commands (Settings → Deploy):
+   - Build command: `npm run build:server` — this is a root `package.json` script (`npm run build -w shared && npm run build -w server`). Use this exact script, not a hand-rolled equivalent: `@xstellar/server` imports `@xstellar/shared`, and `shared`'s `package.json` points `main`/`types` at its compiled `dist/`, so `shared` must be built *before* `server`'s `tsc` runs or the build fails with `Cannot find module '@xstellar/shared'`. A build command that only targets the server workspace (e.g. `npm run build --workspace=@xstellar/server`) will build successfully once but skip this step.
+   - Start command: `npm run start -w server` — `"start": "node dist/index.js"` is already in `server/package.json`, so this works as-is.
 4. Add environment variables (Settings → Variables):
    - `DATABASE_URL` — the Neon connection string from step 1.2
    - `JWT_SECRET` — any long random string (e.g. generate with `openssl rand -hex 32`)
