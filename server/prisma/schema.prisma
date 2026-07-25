@@ -32,6 +32,7 @@ model Character {
   magic    Int
   speed    Int
   spriteKey String
+  inventory Json    @default("{}")
 
   @@index([ownerId])
 }

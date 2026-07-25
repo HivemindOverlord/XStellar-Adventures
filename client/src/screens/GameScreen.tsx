@@ -59,12 +59,15 @@ export function GameScreen() {
     socketRef.current?.emit("queue:join");
   }
 
-  function handleAction(type: BattleAction["type"]) {
+  function handleAction(type: BattleAction["type"], extra?: { skillId?: string; itemId?: string }) {
     if (!myCombatant) return;
+    const targetsEnemy = type === "attack" || type === "skill" || type === "item";
     const action: BattleAction = {
       type,
       actorId: myCombatant.id,
-      targetId: type === "attack" ? opponent?.id : undefined,
+      targetId: targetsEnemy ? opponent?.id : undefined,
+      skillId: extra?.skillId,
+      itemId: extra?.itemId,
     };
     socketRef.current?.emit("battle:action", action);
   }
@@ -89,7 +92,13 @@ export function GameScreen() {
       {(status === "in-battle" || status === "ended") && battleState && myCombatant && (
         <div className="battle-view">
           <PhaserGame myUserId={auth.user.id} />
-          <BattleUI state={battleState} isMyTurn={battleState.activeCombatantId === myCombatant.id} onAction={handleAction} />
+          <BattleUI
+            state={battleState}
+            isMyTurn={battleState.activeCombatantId === myCombatant.id}
+            myCharacter={myCombatant.character}
+            reward={battleState.rewards?.[myCombatant.id]}
+            onAction={handleAction}
+          />
           {status === "ended" && <button onClick={() => setStatus("idle")}>Back to Lobby</button>}
         </div>
       )}

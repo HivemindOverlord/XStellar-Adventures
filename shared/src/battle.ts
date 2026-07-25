@@ -8,6 +8,7 @@ export interface Combatant {
   side: CombatantSide;
   isDefending: boolean;
   isDefeated: boolean;
+  attackBuff?: { amount: number; turnsRemaining: number };
 }
 
 export type BattleActionType = "attack" | "skill" | "item" | "defend" | "flee";
@@ -31,6 +32,12 @@ export interface BattleLogEntry {
 
 export type BattlePhase = "waiting-for-players" | "in-progress" | "victory" | "defeat" | "fled";
 
+export interface BattleReward {
+  xpGained: number;
+  leveledUp: boolean;
+  newLevel: number;
+}
+
 export interface BattleState {
   battleId: string;
   phase: BattlePhase;
@@ -39,4 +46,5 @@ export interface BattleState {
   activeCombatantId: string | null;
   combatants: Combatant[];
   log: BattleLogEntry[];
+  rewards?: Record<string, BattleReward>;
 }
