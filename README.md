@@ -61,6 +61,12 @@ Open two browser windows/tabs at `http://localhost:5173`, register two different
 npm run build
 ```
 
+## Cloud deployment & Android app
+
+The client is also wrapped as a native Android app via [Capacitor](https://capacitorjs.com/) (`client/android/`), configured to load the live-hosted web build in its WebView — so most updates (features, art, balance) ship instantly to the installed app with a normal `git push`, no store review. Native-only changes go out through a GitHub Actions workflow that builds, signs, and publishes to Google Play.
+
+See [CLOUD_SETUP.md](./CLOUD_SETUP.md) for the one-time setup (Neon, Railway, Vercel, Google Play service account, GitHub secrets) and how releases work going forward.
+
 ## Current gameplay loop
 
 1. Register / log in.

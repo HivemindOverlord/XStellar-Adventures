@@ -2,6 +2,13 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+
+# Android signing (generated locally / injected by CI from secrets, never committed)
+client/android/keystore.properties
+client/android/app/*.jks
+client/android/app/*.keystore
+*.jks
+*.keystore
 .env
 .env.*
 !.env.example

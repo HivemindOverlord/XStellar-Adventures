@@ -1,0 +1,95 @@
+name: Android Release
+
+# Builds the Android shell and publishes it to Google Play. This only needs to
+# run for native changes (new plugins, permissions, icons, Capacitor bumps) —
+# ordinary gameplay/art/feature updates ship instantly through the web deploy
+# (Vercel) since the app's WebView loads that URL live. See README.md.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Google Play track to publish to"
+        required: true
+        default: internal
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build -w shared
+
+      - name: Build web client
+        run: npm run build -w client
+
+      - name: Sync Capacitor Android project
+        working-directory: client
+        env:
+          CAP_SERVER_URL: ${{ vars.PRODUCTION_WEB_URL }}
+        run: npx cap sync android
+
+      - name: Decode release keystore
+        working-directory: client/android
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > app/release.jks
+
+      - name: Write keystore.properties
+        working-directory: client/android
+        run: |
+          cat > keystore.properties <<EOF
+          storeFile=release.jks
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build signed AAB
+        working-directory: client/android
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.{0}', github.run_number) }}
+        run: ./gradlew bundleRelease
+
+      - name: Clean up signing material
+        if: always()
+        working-directory: client/android
+        run: rm -f app/release.jks keystore.properties
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xstellar-adventures-release.aab
+          path: client/android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Publish to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.portertech.xstellaradventures
+          releaseFiles: client/android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track || 'internal' }}
+          status: completed
