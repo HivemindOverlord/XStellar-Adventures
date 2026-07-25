@@ -22,6 +22,9 @@ export interface Character {
   skillIds: string[];
   inventory: Record<string, number>;
   spriteKey: string;
+  equippedWeaponId?: string;
+  equippedArmorId?: string;
+  equippedAccessoryId?: string;
 }
 
 export interface Skill {

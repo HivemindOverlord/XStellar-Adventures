@@ -1,11 +1,15 @@
 import type { BattleAction, BattleLogEntry, BattleState, Combatant, Item, Skill } from "@xstellar/shared";
-import { ITEMS, SKILLS } from "@xstellar/shared";
+import { computeEffectiveStats, EQUIPMENT, ITEMS, SKILLS } from "@xstellar/shared";
 
 const BUFF_DURATION_TURNS = 3;
 
+function effectiveStats(combatant: Combatant) {
+  return computeEffectiveStats(combatant.character, EQUIPMENT);
+}
+
 export function createBattle(battleId: string, combatants: Combatant[]): BattleState {
   const turnOrder = [...combatants]
-    .sort((a, b) => b.character.stats.speed - a.character.stats.speed)
+    .sort((a, b) => effectiveStats(b).speed - effectiveStats(a).speed)
     .map((c) => c.id);
 
   return {
@@ -166,7 +170,7 @@ function resolveItem(state: BattleState, actor: Combatant, action: BattleAction)
 
 function resolveDamageItem(state: BattleState, actor: Combatant, action: BattleAction, item: Item): BattleLogEntry {
   const target = requireTarget(state, action.targetId);
-  const damage = Math.max(1, Math.round(item.power - target.character.stats.defense / 4));
+  const damage = Math.max(1, Math.round(item.power - effectiveStats(target).defense / 4));
   applyDamage(target, damage);
   return {
     turn: state.turn,
@@ -179,14 +183,16 @@ function resolveDamageItem(state: BattleState, actor: Combatant, action: BattleA
 
 function applyHeal(target: Combatant, amount: number): number {
   const before = target.character.stats.hp;
-  target.character.stats.hp = Math.min(target.character.stats.maxHp, before + amount);
+  target.character.stats.hp = Math.min(effectiveStats(target).maxHp, before + amount);
   return target.character.stats.hp - before;
 }
 
 function computeDamage(attacker: Combatant, defender: Combatant, kind: "physical" | "magical"): number {
+  const attackerStats = effectiveStats(attacker);
+  const defenderStats = effectiveStats(defender);
   const buff = kind === "physical" ? (attacker.attackBuff?.amount ?? 0) : 0;
-  const offense = (kind === "physical" ? attacker.character.stats.attack : attacker.character.stats.magic) + buff;
-  const defense = defender.character.stats.defense;
+  const offense = (kind === "physical" ? attackerStats.attack : attackerStats.magic) + buff;
+  const defense = defenderStats.defense;
   const guardMultiplier = defender.isDefending ? 0.5 : 1;
   const raw = offense - defense / 2;
   return Math.max(1, Math.round(raw * guardMultiplier));

@@ -83,7 +83,25 @@ button:disabled {
 .find-match {
   display: flex;
   justify-content: center;
+  gap: 12px;
   margin-top: 20vh;
+}
+
+.equipment-panel {
+  background: #1c1233;
+  border: 1px solid #4a3a70;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 24px;
+}
+
+.equipment-slots,
+.equipment-inventory {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .battle-view {

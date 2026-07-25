@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { BattleAction, BattleState } from "@xstellar/shared";
+import type { BattleAction, BattleState, Character } from "@xstellar/shared";
 import { useAuth } from "../state/AuthContext.js";
 import { createGameSocket, type GameSocket } from "../net/socket.js";
 import { eventBus } from "../game/EventBus.js";
 import { PhaserGame } from "../game/PhaserGame.js";
 import { BattleUI } from "../ui/BattleUI.js";
+import { EquipmentPanel } from "../ui/EquipmentPanel.js";
+import { fetchMyCharacter } from "../api/character.js";
 
 type Status = "idle" | "queued" | "in-battle" | "ended";
 
@@ -14,6 +16,15 @@ export function GameScreen() {
   const [status, setStatus] = useState<Status>("idle");
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [character, setCharacter] = useState<Character | null>(null);
+  const [showEquipment, setShowEquipment] = useState(false);
+
+  useEffect(() => {
+    if (!auth || status !== "idle") return;
+    fetchMyCharacter(auth.token)
+      .then(setCharacter)
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load character"));
+  }, [auth, status]);
 
   useEffect(() => {
     if (!auth) return;
@@ -84,7 +95,14 @@ export function GameScreen() {
       {status === "idle" && (
         <div className="find-match">
           <button onClick={findMatch}>Find Match</button>
+          <button onClick={() => setShowEquipment((v) => !v)}>
+            {showEquipment ? "Hide Equipment" : "View Equipment"}
+          </button>
         </div>
+      )}
+
+      {status === "idle" && showEquipment && character && (
+        <EquipmentPanel token={auth.token} character={character} onCharacterChange={setCharacter} />
       )}
 
       {status === "queued" && <p>Searching for an opponent…</p>}
