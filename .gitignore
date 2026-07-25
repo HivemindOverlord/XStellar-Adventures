@@ -18,3 +18,4 @@ server/prisma/dev.db
 server/prisma/dev.db-journal
 .vscode/
 .idea/
+.claude/settings.local.json
