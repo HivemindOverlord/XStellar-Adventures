@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
   BattleState,
@@ -8,8 +9,10 @@ import type {
 import { verifyToken } from "../auth/jwt.js";
 import { getOrCreateStarterCharacter, persistCharacterProgress } from "./starterCharacter.js";
 import { appendNote, applyAction, createBattle, forfeitBattle, IllegalActionError } from "./battleEngine.js";
-import { enqueue, removeBySocketId } from "./matchmaking.js";
+import { enqueue, removeBySocketId, type QueuedPlayer } from "./matchmaking.js";
 import { grantBattleRewards } from "./progression.js";
+import { createBotOpponent, isBotCharacter } from "./botCharacter.js";
+import { chooseBotAction } from "./botAi.js";
 
 interface SocketData {
   userId: string;
@@ -20,6 +23,7 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<strin
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
 const FORFEIT_GRACE_MS = 45_000;
+const BOT_TURN_DELAY_MS = 1_200;
 
 const battleRoomOf = new Map<string, string>(); // socketId -> battleId
 const battleRoomOfUser = new Map<string, string>(); // userId -> battleId, survives socket reconnects
@@ -86,7 +90,9 @@ async function handleQueueJoin(io: AppServer, socket: AppSocket): Promise<void> 
   const character = await getOrCreateStarterCharacter(socket.data.userId, socket.data.username);
   socket.emit("queue:joined");
 
-  const match = enqueue({ socketId: socket.id, userId: socket.data.userId, character });
+  const match = enqueue({ socketId: socket.id, userId: socket.data.userId, character }, (lonePlayer) => {
+    void startBotBattle(io, lonePlayer);
+  });
   if (!match) return;
 
   const [playerA, playerB] = match.players;
@@ -109,16 +115,75 @@ async function handleQueueJoin(io: AppServer, socket: AppSocket): Promise<void> 
     },
   ];
 
-  const state = createBattle(match.battleId, combatants);
-  battleStates.set(match.battleId, state);
-
   for (const player of match.players) {
     battleRoomOf.set(player.socketId, match.battleId);
     battleRoomOfUser.set(player.userId, match.battleId);
     io.sockets.sockets.get(player.socketId)?.join(match.battleId);
   }
 
-  io.to(match.battleId).emit("battle:start", state);
+  beginBattle(io, match.battleId, combatants);
+}
+
+async function startBotBattle(io: AppServer, player: QueuedPlayer): Promise<void> {
+  const socket = io.sockets.sockets.get(player.socketId);
+  if (!socket || battleRoomOfUser.has(player.userId)) return;
+
+  const battleId = randomUUID();
+  const bot = createBotOpponent(player.character);
+  const combatants: Combatant[] = [
+    {
+      id: player.character.id,
+      character: player.character,
+      side: "party",
+      isDefending: false,
+      isDefeated: false,
+    },
+    {
+      id: bot.id,
+      character: bot,
+      side: "enemy",
+      isDefending: false,
+      isDefeated: false,
+    },
+  ];
+
+  battleRoomOf.set(player.socketId, battleId);
+  battleRoomOfUser.set(player.userId, battleId);
+  void socket.join(battleId);
+
+  beginBattle(io, battleId, combatants);
+  maybeTakeBotTurn(io, battleId);
+}
+
+function beginBattle(io: AppServer, battleId: string, combatants: Combatant[]): void {
+  const state = createBattle(battleId, combatants);
+  battleStates.set(battleId, state);
+  io.to(battleId).emit("battle:start", state);
+}
+
+function maybeTakeBotTurn(io: AppServer, battleId: string): void {
+  const state = battleStates.get(battleId);
+  if (!state || state.phase !== "in-progress") return;
+
+  const active = state.combatants.find((c) => c.id === state.activeCombatantId);
+  if (!active || !isBotCharacter(active.character)) return;
+
+  setTimeout(() => {
+    const current = battleStates.get(battleId);
+    if (!current || current.phase !== "in-progress" || current.activeCombatantId !== active.id) return;
+
+    const action = chooseBotAction(current, active);
+    const nextState = applyAction(current, action);
+
+    if (nextState.phase === "in-progress") {
+      battleStates.set(battleId, nextState);
+      io.to(battleId).emit("battle:state", nextState);
+      maybeTakeBotTurn(io, battleId);
+      return;
+    }
+
+    void finishBattle(io, battleId, nextState);
+  }, BOT_TURN_DELAY_MS);
 }
 
 function handleBattleAction(io: AppServer, socket: AppSocket, action: Parameters<ClientToServerEvents["battle:action"]>[0]): void {
@@ -135,6 +200,7 @@ function handleBattleAction(io: AppServer, socket: AppSocket, action: Parameters
     if (nextState.phase === "in-progress") {
       battleStates.set(battleId, nextState);
       io.to(battleId).emit("battle:state", nextState);
+      maybeTakeBotTurn(io, battleId);
       return;
     }
 
@@ -183,7 +249,11 @@ async function finishBattle(io: AppServer, battleId: string, state: BattleState)
   const rewards = grantBattleRewards(state);
   const finalState: BattleState = { ...state, rewards };
 
-  await Promise.all(finalState.combatants.map((c) => persistCharacterProgress(c.character)));
+  await Promise.all(
+    finalState.combatants
+      .filter((c) => !isBotCharacter(c.character))
+      .map((c) => persistCharacterProgress(c.character)),
+  );
 
   io.to(battleId).emit("battle:end", finalState);
   cleanupBattle(battleId);

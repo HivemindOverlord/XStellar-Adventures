@@ -16,23 +16,24 @@ model User {
 }
 
 model Character {
-  id       String  @id @default(uuid())
-  owner    User    @relation(fields: [ownerId], references: [id])
-  ownerId  String
-  name     String
-  jobClass String
-  level    Int     @default(1)
-  xp       Int     @default(0)
-  maxHp    Int
-  hp       Int
-  maxMp    Int
-  mp       Int
-  attack   Int
-  defense  Int
-  magic    Int
-  speed    Int
+  id        String @id @default(uuid())
+  owner     User   @relation(fields: [ownerId], references: [id])
+  ownerId   String
+  name      String
+  jobClass  String
+  level     Int    @default(1)
+  xp        Int    @default(0)
+  winStreak Int    @default(0)
+  maxHp     Int
+  hp        Int
+  maxMp     Int
+  mp        Int
+  attack    Int
+  defense   Int
+  magic     Int
+  speed     Int
   spriteKey String
-  inventory Json    @default("{}")
+  inventory Json   @default("{}")
 
   @@index([ownerId])
 }

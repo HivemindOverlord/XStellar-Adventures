@@ -18,6 +18,7 @@ export interface Character {
   jobClass: JobClass;
   level: number;
   xp: number;
+  winStreak: number;
   stats: Stats;
   skillIds: string[];
   inventory: Record<string, number>;
