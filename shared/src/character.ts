@@ -38,6 +38,13 @@ export interface Character {
   currency: number;
   purchasesToday: Record<string, number>;
   purchasesTodayDate?: string;
+  // Chapter ids first-cleared by this character (Story & PvE Campaign). Per-character, not
+  // per-account, since class/specialization progress is per-character too.
+  completedChapterIds: string[];
+  // Per-chapter tally of physical vs magical actions this character has thrown at that
+  // chapter's boss across every attempt (win or loss) — the campaign AI's adaptive-defense
+  // rule reads this when building the boss for the next attempt.
+  campaignBossMemory: Record<string, { physical: number; magical: number }>;
 }
 
 export interface Skill {

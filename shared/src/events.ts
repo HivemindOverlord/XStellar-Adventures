@@ -12,6 +12,7 @@ export interface ClientToServerEvents {
   "queue:join": () => void;
   "queue:leave": () => void;
   "battle:action": (action: BattleAction) => void;
+  "campaign:start": (chapterId: string) => void;
 }
 
 export interface SocketAuth {

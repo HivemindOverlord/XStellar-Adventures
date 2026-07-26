@@ -37,6 +37,16 @@ export const SKILLS: Record<string, Skill> = {
     target: "self",
     kind: "heal",
   },
+  // Signature Hive Guardian skill (Campaign bosses) — "swings its left-side blade in a
+  // sweeping arc" per the Book Bible's monster gallery story excerpt.
+  guardian_blade_sweep: {
+    id: "guardian_blade_sweep",
+    name: "Bladed Sweep",
+    mpCost: 6,
+    power: 1.5,
+    target: "single-enemy",
+    kind: "physical",
+  },
 };
 
 export const CLASS_SKILLS: Record<JobClass, string[]> = {

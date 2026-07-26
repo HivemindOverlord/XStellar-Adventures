@@ -34,6 +34,8 @@ export function createBotOpponent(player: Character): Character {
     xp: 0,
     unallocatedStatPoints: 0,
     unlockedClasses: [jobClass],
+    completedChapterIds: [],
+    campaignBossMemory: {},
     currentWinStreak: 0,
     dryStreakWeapon: 0,
     dryStreakArmor: 0,

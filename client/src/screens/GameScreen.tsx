@@ -8,6 +8,7 @@ import { BattleUI } from "../ui/BattleUI.js";
 import { EquipmentPanel } from "../ui/EquipmentPanel.js";
 import { ShopPanel } from "../ui/ShopPanel.js";
 import { StatAllocationPanel } from "../ui/StatAllocationPanel.js";
+import { CampaignPanel } from "../ui/CampaignPanel.js";
 import { fetchMyCharacter } from "../api/character.js";
 
 type Status = "idle" | "queued" | "in-battle" | "ended";
@@ -27,6 +28,7 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
   const [showEquipment, setShowEquipment] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showCampaign, setShowCampaign] = useState(false);
 
   useEffect(() => {
     if (!auth || status !== "idle") return;
@@ -82,6 +84,12 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
     socketRef.current?.emit("queue:join");
   }
 
+  function startChapter(chapterId: string) {
+    setError(null);
+    setShowCampaign(false);
+    socketRef.current?.emit("campaign:start", chapterId);
+  }
+
   function handleAction(type: BattleAction["type"], extra?: { skillId?: string; itemId?: string }) {
     if (!myCombatant) return;
     const targetsEnemy = type === "attack" || type === "skill" || type === "item";
@@ -109,12 +117,17 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
       {status === "idle" && (
         <div className="find-match">
           <button onClick={findMatch}>Find Match</button>
+          <button onClick={() => setShowCampaign((v) => !v)}>{showCampaign ? "Hide Campaign" : "Campaign"}</button>
           <button onClick={() => setShowEquipment((v) => !v)}>
             {showEquipment ? "Hide Equipment" : "View Equipment"}
           </button>
           <button onClick={() => setShowShop((v) => !v)}>{showShop ? "Hide Shop" : "Shop"}</button>
           <button onClick={() => setShowStats((v) => !v)}>{showStats ? "Hide Stats" : "Stats"}</button>
         </div>
+      )}
+
+      {status === "idle" && showCampaign && character && (
+        <CampaignPanel character={character} onStartChapter={startChapter} />
       )}
 
       {status === "idle" && showStats && character && (
