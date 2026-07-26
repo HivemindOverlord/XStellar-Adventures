@@ -57,7 +57,7 @@ export function removeBySocketId(socketId: string): void {
 function pairQueuedPlayers(onMatch: (match: MatchedPair) => void): void {
   while (queue.length >= 2) {
     const player = queue.shift() as QueuedPlayer;
-    const opponent = queue.splice(closestStreakIndex(player.character.winStreak), 1)[0];
+    const opponent = queue.splice(closestStreakIndex(player.character.currentWinStreak), 1)[0];
     clearBotTimer(player.socketId);
     clearBotTimer(opponent.socketId);
     onMatch({ battleId: randomUUID(), players: [player, opponent] });
@@ -68,7 +68,7 @@ function closestStreakIndex(winStreak: number): number {
   let bestIndex = 0;
   let bestDiff = Infinity;
   for (let i = 0; i < queue.length; i++) {
-    const diff = Math.abs(queue[i].character.winStreak - winStreak);
+    const diff = Math.abs(queue[i].character.currentWinStreak - winStreak);
     if (diff < bestDiff) {
       bestDiff = diff;
       bestIndex = i;

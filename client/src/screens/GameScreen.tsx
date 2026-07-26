@@ -6,6 +6,7 @@ import { eventBus } from "../game/EventBus.js";
 import { PhaserGame } from "../game/PhaserGame.js";
 import { BattleUI } from "../ui/BattleUI.js";
 import { EquipmentPanel } from "../ui/EquipmentPanel.js";
+import { ShopPanel } from "../ui/ShopPanel.js";
 import { fetchMyCharacter } from "../api/character.js";
 
 type Status = "idle" | "queued" | "in-battle" | "ended";
@@ -18,6 +19,7 @@ export function GameScreen() {
   const [error, setError] = useState<string | null>(null);
   const [character, setCharacter] = useState<Character | null>(null);
   const [showEquipment, setShowEquipment] = useState(false);
+  const [showShop, setShowShop] = useState(false);
 
   useEffect(() => {
     if (!auth || status !== "idle") return;
@@ -87,6 +89,7 @@ export function GameScreen() {
     <div className="game-screen">
       <header className="game-header">
         <span>Welcome, {auth.user.username}</span>
+        <span>{character?.currency ?? 0} Driftmetal</span>
         <button onClick={logout}>Log out</button>
       </header>
 
@@ -98,11 +101,16 @@ export function GameScreen() {
           <button onClick={() => setShowEquipment((v) => !v)}>
             {showEquipment ? "Hide Equipment" : "View Equipment"}
           </button>
+          <button onClick={() => setShowShop((v) => !v)}>{showShop ? "Hide Shop" : "Shop"}</button>
         </div>
       )}
 
       {status === "idle" && showEquipment && character && (
         <EquipmentPanel token={auth.token} character={character} onCharacterChange={setCharacter} />
+      )}
+
+      {status === "idle" && showShop && character && (
+        <ShopPanel token={auth.token} character={character} onCharacterChange={setCharacter} />
       )}
 
       {status === "queued" && <p>Searching for an opponent…</p>}

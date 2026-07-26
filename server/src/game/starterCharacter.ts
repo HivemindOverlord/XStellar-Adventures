@@ -42,7 +42,13 @@ export async function persistCharacterProgress(character: Character): Promise<vo
     data: {
       level: character.level,
       xp: character.xp,
-      winStreak: character.winStreak,
+      currentWinStreak: character.currentWinStreak,
+      dryStreakWeapon: character.dryStreakWeapon,
+      dryStreakArmor: character.dryStreakArmor,
+      dryStreakAccessory: character.dryStreakAccessory,
+      currency: character.currency,
+      purchasesToday: character.purchasesToday as Prisma.InputJsonValue,
+      purchasesTodayDate: character.purchasesTodayDate ?? null,
       maxHp: character.stats.maxHp,
       hp: character.stats.maxHp,
       maxMp: character.stats.maxMp,
@@ -66,7 +72,13 @@ type CharacterRow = {
   jobClass: string;
   level: number;
   xp: number;
-  winStreak: number;
+  currentWinStreak: number;
+  dryStreakWeapon: number;
+  dryStreakArmor: number;
+  dryStreakAccessory: number;
+  currency: number;
+  purchasesToday: Prisma.JsonValue;
+  purchasesTodayDate: string | null;
   maxHp: number;
   hp: number;
   maxMp: number;
@@ -91,7 +103,13 @@ function toSharedCharacter(row: CharacterRow): Character {
     jobClass,
     level: row.level,
     xp: row.xp,
-    winStreak: row.winStreak,
+    currentWinStreak: row.currentWinStreak,
+    dryStreakWeapon: row.dryStreakWeapon,
+    dryStreakArmor: row.dryStreakArmor,
+    dryStreakAccessory: row.dryStreakAccessory,
+    currency: row.currency,
+    purchasesToday: (row.purchasesToday as Record<string, number>) ?? {},
+    purchasesTodayDate: row.purchasesTodayDate ?? undefined,
     spriteKey: row.spriteKey,
     skillIds: CLASS_SKILLS[jobClass] ?? [],
     inventory: (row.inventory as Record<string, number>) ?? {},
