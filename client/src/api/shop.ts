@@ -1,4 +1,4 @@
-import type { Character, ShopSellLine, ShopSellResponse, ShopStateResponse } from "@xstellar/shared";
+import type { Character, ShopSellRequestBody, ShopSellResponse, ShopStateResponse } from "@xstellar/shared";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000";
 
@@ -31,9 +31,9 @@ export function buyItem(token: string, itemId: string, quantity: number): Promis
   });
 }
 
-export function sellItems(token: string, items: ShopSellLine[]): Promise<ShopSellResponse> {
+export function sellItems(token: string, body: ShopSellRequestBody): Promise<ShopSellResponse> {
   return authedJson<ShopSellResponse>("/api/shop/sell", token, {
     method: "POST",
-    body: JSON.stringify({ items }),
+    body: JSON.stringify(body),
   });
 }

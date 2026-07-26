@@ -18,7 +18,8 @@ export function ShopPanel({ token, character, onCharacterChange }: ShopPanelProp
   const [busy, setBusy] = useState(false);
   const [buyQuantities, setBuyQuantities] = useState<Record<string, number>>({});
   const [sellQuantities, setSellQuantities] = useState<Record<string, number>>({});
-  const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set());
+  const [selectedConsumables, setSelectedConsumables] = useState<Set<string>>(new Set());
+  const [selectedInstances, setSelectedInstances] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     void loadShop();
@@ -70,14 +71,15 @@ export function ShopPanel({ token, character, onCharacterChange }: ShopPanelProp
     }
   }
 
-  async function handleSellLines(lines: { itemId: string; quantity: number }[]) {
-    if (lines.length === 0) return;
+  async function handleSell(consumables: { itemId: string; quantity: number }[], equipment: { instanceId: string }[]) {
+    if (consumables.length === 0 && equipment.length === 0) return;
     setError(null);
     setBusy(true);
     try {
-      const result = await sellItems(token, lines);
+      const result = await sellItems(token, { consumables, equipment });
       onCharacterChange(result.character);
-      setSelectedForBatch(new Set());
+      setSelectedConsumables(new Set());
+      setSelectedInstances(new Set());
       await loadShop();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sell items");
@@ -86,8 +88,8 @@ export function ShopPanel({ token, character, onCharacterChange }: ShopPanelProp
     }
   }
 
-  function toggleSelected(itemId: string) {
-    setSelectedForBatch((prev) => {
+  function toggleConsumable(itemId: string) {
+    setSelectedConsumables((prev) => {
       const next = new Set(prev);
       if (next.has(itemId)) next.delete(itemId);
       else next.add(itemId);
@@ -95,7 +97,16 @@ export function ShopPanel({ token, character, onCharacterChange }: ShopPanelProp
     });
   }
 
-  const ownedEntries = Object.entries(character.inventory).filter(([, count]) => count > 0);
+  function toggleInstance(instanceId: string) {
+    setSelectedInstances((prev) => {
+      const next = new Set(prev);
+      if (next.has(instanceId)) next.delete(instanceId);
+      else next.add(instanceId);
+      return next;
+    });
+  }
+
+  const ownedConsumables = Object.entries(character.inventory).filter(([, count]) => count > 0);
 
   if (loading) return <div className="shop-panel">Loading shop…</div>;
 
@@ -140,7 +151,7 @@ export function ShopPanel({ token, character, onCharacterChange }: ShopPanelProp
             <h5>{rarity[0].toUpperCase() + rarity.slice(1)}</h5>
             <ul className="shop-listing">
               {items.map((item) => {
-                const classLocked = item.classLock !== undefined && item.classLock !== character.jobClass;
+                const classLocked = item.classLock !== undefined && !character.unlockedClasses.includes(item.classLock);
                 return (
                   <li key={item.id}>
                     <span>
@@ -158,19 +169,23 @@ export function ShopPanel({ token, character, onCharacterChange }: ShopPanelProp
         );
       })}
 
-      <h4>Sell</h4>
+      <h4>Sell Consumables</h4>
       <ul className="shop-listing">
-        {ownedEntries.length === 0 && <li>Nothing to sell</li>}
-        {ownedEntries.map(([itemId, owned]) => {
-          const catalogItem: EquipmentItem | Item | undefined = EQUIPMENT[itemId] ?? ITEMS[itemId];
-          if (!catalogItem) return null;
+        {ownedConsumables.length === 0 && <li>Nothing to sell</li>}
+        {ownedConsumables.map(([itemId, owned]) => {
+          const item = ITEMS[itemId];
+          if (!item) return null;
           const refundEligible = shop?.refundEligible[itemId] ?? 0;
           const quantity = sellQuantities[itemId] ?? owned;
           return (
             <li key={itemId}>
-              <input type="checkbox" checked={selectedForBatch.has(itemId)} onChange={() => toggleSelected(itemId)} />
+              <input
+                type="checkbox"
+                checked={selectedConsumables.has(itemId)}
+                onChange={() => toggleConsumable(itemId)}
+              />
               <span>
-                {catalogItem.name} ×{owned} ({Math.min(refundEligible, owned)} at full refund today)
+                {item.name} ×{owned} ({Math.min(refundEligible, owned)} at full refund today)
               </span>
               <input
                 type="number"
@@ -184,24 +199,51 @@ export function ShopPanel({ token, character, onCharacterChange }: ShopPanelProp
                   }))
                 }
               />
-              <button disabled={busy} onClick={() => handleSellLines([{ itemId, quantity }])}>
+              <button disabled={busy} onClick={() => handleSell([{ itemId, quantity }], [])}>
                 Sell
               </button>
-              <button disabled={busy} onClick={() => handleSellLines([{ itemId, quantity: owned }])}>
+              <button disabled={busy} onClick={() => handleSell([{ itemId, quantity: owned }], [])}>
                 Sell All
               </button>
             </li>
           );
         })}
       </ul>
+
+      <h4>Sell Equipment</h4>
+      <ul className="shop-listing">
+        {(shop?.equipmentInstances.length ?? 0) === 0 && <li>Nothing to sell</li>}
+        {(shop?.equipmentInstances ?? []).map((instance) => {
+          const item = EQUIPMENT[instance.catalogItemId];
+          if (!item) return null;
+          return (
+            <li key={instance.id}>
+              <input
+                type="checkbox"
+                checked={selectedInstances.has(instance.id)}
+                onChange={() => toggleInstance(instance.id)}
+              />
+              <span>
+                {item.name} ({item.rarity}) — sells for {instance.sellValue} Driftmetal
+                {instance.fullRefundEligible ? " (full refund today)" : ""}
+              </span>
+              <button disabled={busy} onClick={() => handleSell([], [{ instanceId: instance.id }])}>
+                Sell
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
       <button
-        disabled={busy || selectedForBatch.size === 0}
+        disabled={busy || (selectedConsumables.size === 0 && selectedInstances.size === 0)}
         onClick={() =>
-          handleSellLines(
-            [...selectedForBatch].map((itemId) => ({
+          handleSell(
+            [...selectedConsumables].map((itemId) => ({
               itemId,
               quantity: sellQuantities[itemId] ?? character.inventory[itemId] ?? 0,
             })),
+            [...selectedInstances].map((instanceId) => ({ instanceId })),
           )
         }
       >

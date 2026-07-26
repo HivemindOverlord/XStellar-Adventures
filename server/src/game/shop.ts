@@ -1,4 +1,11 @@
-import type { Character, Rarity, ShopCatalog, ShopSellLine } from "@xstellar/shared";
+import type {
+  Character,
+  Rarity,
+  ShopCatalog,
+  ShopEquipmentInstanceView,
+  ShopSellConsumableLine,
+  ShopSellEquipmentLine,
+} from "@xstellar/shared";
 import {
   EQUIPMENT,
   EQUIPMENT_ROTATION_TIER_TARGETS,
@@ -7,6 +14,8 @@ import {
   priceOfConsumable,
   priceOfEquipment,
 } from "@xstellar/shared";
+import { prisma } from "../db/prisma.js";
+import { listEquipmentInstances } from "./equipment.js";
 import { persistCharacterProgress } from "./starterCharacter.js";
 
 export class ShopError extends Error {}
@@ -85,6 +94,35 @@ export function refundEligibility(character: Character, today: string = getUtcDa
   return character.purchasesTodayDate === today ? { ...character.purchasesToday } : {};
 }
 
+function equipmentSellValue(
+  instance: { catalogItemId: string; acquiredVia: string; purchasedDate?: string },
+  today: string,
+): { sellValue: number; fullRefundEligible: boolean } {
+  const item = EQUIPMENT[instance.catalogItemId];
+  const price = item ? priceOfEquipment(item) : 0;
+  const fullRefundEligible = instance.acquiredVia === "shop" && instance.purchasedDate === today;
+  return { sellValue: fullRefundEligible ? price : Math.floor(price * 0.2), fullRefundEligible };
+}
+
+export async function getOwnedEquipmentInstanceViews(
+  characterId: string,
+  today: string = getUtcDateString(),
+): Promise<ShopEquipmentInstanceView[]> {
+  const instances = await listEquipmentInstances(characterId);
+  return instances.map((instance) => {
+    const { sellValue, fullRefundEligible } = equipmentSellValue(instance, today);
+    return {
+      id: instance.id,
+      catalogItemId: instance.catalogItemId,
+      enhancementLevel: instance.enhancementLevel,
+      acquiredVia: instance.acquiredVia,
+      purchasedDate: instance.purchasedDate,
+      sellValue,
+      fullRefundEligible,
+    };
+  });
+}
+
 function ensureFreshPurchaseWindow(character: Character, today: string): void {
   if (character.purchasesTodayDate !== today) {
     character.purchasesToday = {};
@@ -112,22 +150,43 @@ export async function buyItem(character: Character, itemId: string, quantity: nu
     throw new ShopError("Not enough Driftmetal");
   }
 
-  ensureFreshPurchaseWindow(character, today);
-
   character.currency -= totalCost;
-  character.inventory[itemId] = (character.inventory[itemId] ?? 0) + quantity;
-  character.purchasesToday[itemId] = (character.purchasesToday[itemId] ?? 0) + quantity;
+
+  if (EQUIPMENT[itemId]) {
+    // Equipment ownership lives in CharacterEquipmentInstance rows, not inventory counts —
+    // each purchased unit becomes its own row so it can later be sold, equipped, or enhanced
+    // independently. purchasedDate (not the character-level purchasesToday map) is what the
+    // sell flow uses to decide same-day full-refund eligibility for these.
+    await prisma.characterEquipmentInstance.createMany({
+      data: Array.from({ length: quantity }, () => ({
+        characterId: character.id,
+        catalogItemId: itemId,
+        acquiredVia: "shop",
+        purchasedDate: today,
+      })),
+    });
+  } else {
+    ensureFreshPurchaseWindow(character, today);
+    character.inventory[itemId] = (character.inventory[itemId] ?? 0) + quantity;
+    character.purchasesToday[itemId] = (character.purchasesToday[itemId] ?? 0) + quantity;
+  }
 
   await persistCharacterProgress(character);
 }
 
-// Sell-back rule per unit: today's purchases refund at 100% of catalog price
-// first (consuming that day's purchasesToday count), then any remaining units
-// — older stock or loot drops, which never have a purchasesToday entry — sell
-// at 20%. Validates the whole batch before mutating anything so a bad line
-// rejects the entire call instead of partially applying.
-export async function sellItems(character: Character, lines: ShopSellLine[]): Promise<number> {
-  for (const line of lines) {
+// Sell-back rule per unit: today's purchases refund at 100% of catalog price, older/looted
+// stock sells at 20%. Consumables track eligibility via the character-level purchasesToday
+// map (keyed by itemId+quantity); equipment tracks it per CharacterEquipmentInstance row
+// (acquiredVia/purchasedDate), since each unit is now its own sellable row. Validates the
+// whole batch — both halves — before mutating anything, so a bad line in either list rejects
+// the entire call instead of partially applying.
+export async function sellItems(
+  character: Character,
+  request: { consumables: ShopSellConsumableLine[]; equipment: ShopSellEquipmentLine[] },
+): Promise<number> {
+  const { consumables, equipment } = request;
+
+  for (const line of consumables) {
     if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
       throw new ShopError(`Invalid quantity for ${line.itemId}`);
     }
@@ -139,11 +198,25 @@ export async function sellItems(character: Character, lines: ShopSellLine[]): Pr
     }
   }
 
+  const instanceIds = equipment.map((line) => line.instanceId);
+  if (new Set(instanceIds).size !== instanceIds.length) {
+    throw new ShopError("Duplicate equipment instance in sell request");
+  }
+
+  const ownedInstances = instanceIds.length ? await listEquipmentInstances(character.id) : [];
+  const ownedInstanceById = new Map(ownedInstances.map((instance) => [instance.id, instance]));
+  for (const instanceId of instanceIds) {
+    if (!ownedInstanceById.has(instanceId)) {
+      throw new ShopError("You don't own that equipment");
+    }
+  }
+
   const today = getUtcDateString();
   ensureFreshPurchaseWindow(character, today);
 
   let currencyGained = 0;
-  for (const line of lines) {
+
+  for (const line of consumables) {
     const price = priceOf(line.itemId) as number;
 
     const refundEligibleUnits = character.purchasesToday[line.itemId] ?? 0;
@@ -157,6 +230,22 @@ export async function sellItems(character: Character, lines: ShopSellLine[]): Pr
     if (character.inventory[line.itemId] <= 0) {
       delete character.inventory[line.itemId];
     }
+  }
+
+  for (const instanceId of instanceIds) {
+    const instance = ownedInstanceById.get(instanceId);
+    if (!instance) continue;
+    currencyGained += equipmentSellValue(instance, today).sellValue;
+
+    if (character.equippedWeaponId === instanceId) character.equippedWeaponId = undefined;
+    if (character.equippedArmorId === instanceId) character.equippedArmorId = undefined;
+    if (character.equippedAccessoryId === instanceId) character.equippedAccessoryId = undefined;
+  }
+
+  if (instanceIds.length > 0) {
+    await prisma.characterEquipmentInstance.deleteMany({
+      where: { id: { in: instanceIds }, characterId: character.id },
+    });
   }
 
   character.currency += currencyGained;
