@@ -6,3 +6,4 @@ export * from "./content.js";
 export * from "./progression.js";
 export * from "./equipment.js";
 export * from "./shop.js";
+export * from "./campaign.js";

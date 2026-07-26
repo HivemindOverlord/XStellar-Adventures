@@ -115,7 +115,13 @@ async function rollItemDrops(character: Character, opponentLevel: number): Promi
   return dropped;
 }
 
-export async function grantBattleRewards(state: BattleState): Promise<Record<string, BattleReward>> {
+// victoryMultiplier scales only the winner's XP/Driftmetal — used by the Story & PvE Campaign
+// flow to pay full reward on a chapter's first clear and a reduced reward on replays. PvP/bot
+// battles omit it and get the unscaled amount, same as before this parameter existed.
+export async function grantBattleRewards(
+  state: BattleState,
+  victoryMultiplier = 1,
+): Promise<Record<string, BattleReward>> {
   const rewards: Record<string, BattleReward> = {};
 
   if (state.phase === "victory" || state.phase === "defeat") {
@@ -125,9 +131,9 @@ export async function grantBattleRewards(state: BattleState): Promise<Record<str
       const opponentLevel = opponent?.character.level ?? 1;
       const won = (c.side === "party") === partyWon;
 
-      const xpAmount = won ? xpForVictory(opponentLevel) : xpForDefeat(opponentLevel);
+      const xpAmount = won ? Math.round(xpForVictory(opponentLevel) * victoryMultiplier) : xpForDefeat(opponentLevel);
       const currencyAmount = won
-        ? driftmetalForVictory(opponentLevel, c.character.currentWinStreak)
+        ? Math.round(driftmetalForVictory(opponentLevel, c.character.currentWinStreak) * victoryMultiplier)
         : driftmetalForDefeat(opponentLevel);
       const itemsDropped = won ? await rollItemDrops(c.character, opponentLevel) : [];
 

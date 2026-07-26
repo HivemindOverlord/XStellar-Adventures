@@ -98,6 +98,8 @@ async function createBlankCharacter(userId: string, name: string) {
       xp: 0,
       unallocatedStatPoints: 0,
       unlockedClasses: [] as Prisma.InputJsonValue,
+      completedChapterIds: [] as Prisma.InputJsonValue,
+      campaignBossMemory: {} as Prisma.InputJsonValue,
       spriteKey: "hero_blank",
       inventory: STARTER_INVENTORY as Prisma.InputJsonValue,
       ...STARTER_STATS,
@@ -125,6 +127,8 @@ export async function persistCharacterProgress(character: Character): Promise<vo
       xp: character.xp,
       unallocatedStatPoints: character.unallocatedStatPoints,
       unlockedClasses: character.unlockedClasses as Prisma.InputJsonValue,
+      completedChapterIds: character.completedChapterIds as Prisma.InputJsonValue,
+      campaignBossMemory: character.campaignBossMemory as Prisma.InputJsonValue,
       currentWinStreak: character.currentWinStreak,
       dryStreakWeapon: character.dryStreakWeapon,
       dryStreakArmor: character.dryStreakArmor,
@@ -157,6 +161,8 @@ type CharacterRow = {
   xp: number;
   unallocatedStatPoints: number;
   unlockedClasses: Prisma.JsonValue;
+  completedChapterIds: Prisma.JsonValue;
+  campaignBossMemory: Prisma.JsonValue;
   currentWinStreak: number;
   dryStreakWeapon: number;
   dryStreakArmor: number;
@@ -191,6 +197,8 @@ function toSharedCharacter(row: CharacterRow): Character {
     xp: row.xp,
     unallocatedStatPoints: row.unallocatedStatPoints,
     unlockedClasses,
+    completedChapterIds: (row.completedChapterIds as string[]) ?? [],
+    campaignBossMemory: (row.campaignBossMemory as Record<string, { physical: number; magical: number }>) ?? {},
     currentWinStreak: row.currentWinStreak,
     dryStreakWeapon: row.dryStreakWeapon,
     dryStreakArmor: row.dryStreakArmor,

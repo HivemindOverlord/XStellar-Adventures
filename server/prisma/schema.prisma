@@ -45,6 +45,11 @@ model Character {
   currency           Int @default(0)
   purchasesToday     Json @default("{}")
   purchasesTodayDate String?
+  // Story & PvE Campaign: chapter ids this character has first-cleared.
+  completedChapterIds Json @default("[]")
+  // Per-chapter { physical, magical } action tally against that chapter's boss, accumulated
+  // across every attempt — read by the campaign AI's adaptive-defense rule.
+  campaignBossMemory  Json @default("{}")
   maxHp     Int
   hp        Int
   maxMp     Int

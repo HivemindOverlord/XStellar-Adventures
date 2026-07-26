@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
+  BattleActionType,
   BattleState,
   ClientToServerEvents,
   Combatant,
   ServerToClientEvents,
 } from "@xstellar/shared";
+import { CAMPAIGN_CHAPTERS } from "@xstellar/shared";
 import { verifyToken } from "../auth/jwt.js";
 import { getOrCreateStarterCharacter, persistCharacterProgress } from "./starterCharacter.js";
 import { appendNote, applyAction, createBattle, forfeitBattle, IllegalActionError } from "./battleEngine.js";
@@ -14,6 +16,13 @@ import { grantBattleRewards } from "./progression.js";
 import { createBotOpponent, isBotCharacter } from "./botCharacter.js";
 import { chooseBotAction } from "./botAi.js";
 import { getEquippedInstances } from "./equipment.js";
+import {
+  buildCampaignBossCombatant,
+  CampaignChapterError,
+  isCampaignBossCharacter,
+  resolveCampaignBattle,
+} from "./campaignEngine.js";
+import { chooseCampaignAiAction, classifyPlayerActionLean } from "./campaignAi.js";
 
 interface SocketData {
   userId: string;
@@ -30,6 +39,15 @@ const battleRoomOf = new Map<string, string>(); // socketId -> battleId
 const battleRoomOfUser = new Map<string, string>(); // userId -> battleId, survives socket reconnects
 const battleStates = new Map<string, BattleState>();
 const forfeitTimers = new Map<string, ReturnType<typeof setTimeout>>(); // userId -> pending forfeit
+
+interface CampaignMeta {
+  chapterId: string;
+  // Rolling window of the player's own recent action types this fight, capped at 3 — read by
+  // campaignAi's "punish turtling" rule.
+  recentPlayerActionTypes: BattleActionType[];
+}
+const campaignMeta = new Map<string, CampaignMeta>(); // battleId -> campaign metadata
+const CAMPAIGN_HISTORY_WINDOW = 3;
 
 export function registerSocketHandlers(io: AppServer): void {
   io.use((socket, next) => {
@@ -54,6 +72,7 @@ export function registerSocketHandlers(io: AppServer): void {
     socket.on("queue:join", () => void handleQueueJoin(io, socket));
     socket.on("queue:leave", () => removeBySocketId(socket.id));
     socket.on("battle:action", (action) => handleBattleAction(io, socket, action));
+    socket.on("campaign:start", (chapterId) => void handleCampaignStart(io, socket, chapterId));
     socket.on("disconnect", () => handleDisconnect(io, socket));
   });
 }
@@ -169,6 +188,52 @@ async function startBotBattle(io: AppServer, player: QueuedPlayer): Promise<void
   maybeTakeBotTurn(io, battleId);
 }
 
+async function handleCampaignStart(io: AppServer, socket: AppSocket, chapterId: string): Promise<void> {
+  if (battleRoomOfUser.has(socket.data.userId)) {
+    socket.emit("error", "You are already in a battle");
+    return;
+  }
+  if (!CAMPAIGN_CHAPTERS[chapterId]) {
+    socket.emit("error", "Unknown chapter");
+    return;
+  }
+
+  const character = await getOrCreateStarterCharacter(socket.data.userId, socket.data.username);
+  const playerInstances = await getEquippedInstances(character);
+
+  let bossCombatant: Combatant;
+  try {
+    bossCombatant = buildCampaignBossCombatant(chapterId, character);
+  } catch (err) {
+    if (err instanceof CampaignChapterError) {
+      socket.emit("error", err.message);
+      return;
+    }
+    throw err;
+  }
+
+  const combatants: Combatant[] = [
+    {
+      id: character.id,
+      character,
+      side: "party",
+      isDefending: false,
+      isDefeated: false,
+      equipmentInstances: playerInstances,
+    },
+    bossCombatant,
+  ];
+
+  const battleId = randomUUID();
+  battleRoomOf.set(socket.id, battleId);
+  battleRoomOfUser.set(socket.data.userId, battleId);
+  void socket.join(battleId);
+  campaignMeta.set(battleId, { chapterId, recentPlayerActionTypes: [] });
+
+  beginBattle(io, battleId, combatants);
+  maybeTakeCampaignAiTurn(io, battleId);
+}
+
 function beginBattle(io: AppServer, battleId: string, combatants: Combatant[]): void {
   const state = createBattle(battleId, combatants);
   battleStates.set(battleId, state);
@@ -200,6 +265,69 @@ function maybeTakeBotTurn(io: AppServer, battleId: string): void {
   }, BOT_TURN_DELAY_MS);
 }
 
+function maybeTakeCampaignAiTurn(io: AppServer, battleId: string): void {
+  const meta = campaignMeta.get(battleId);
+  const state = battleStates.get(battleId);
+  if (!meta || !state || state.phase !== "in-progress") return;
+
+  const active = state.combatants.find((c) => c.id === state.activeCombatantId);
+  if (!active || !isCampaignBossCharacter(active.character)) return;
+
+  setTimeout(() => {
+    const current = battleStates.get(battleId);
+    const currentMeta = campaignMeta.get(battleId);
+    if (!current || !currentMeta || current.phase !== "in-progress" || current.activeCombatantId !== active.id) return;
+
+    const action = chooseCampaignAiAction(current, active, currentMeta.recentPlayerActionTypes);
+    const nextState = applyAction(current, action);
+
+    if (nextState.phase === "in-progress") {
+      battleStates.set(battleId, nextState);
+      io.to(battleId).emit("battle:state", nextState);
+      maybeTakeCampaignAiTurn(io, battleId);
+      return;
+    }
+
+    void finishCampaignBattle(io, battleId, nextState, currentMeta.chapterId);
+  }, BOT_TURN_DELAY_MS);
+}
+
+// Records a just-succeeded player action into this fight's rolling defend-watch window and
+// into the character's cross-attempt physical/magical lean tally for this chapter's boss.
+function recordCampaignPlayerAction(nextState: BattleState, action: Parameters<ClientToServerEvents["battle:action"]>[0], meta: CampaignMeta): void {
+  const actor = nextState.combatants.find((c) => c.id === action.actorId);
+  if (!actor || isCampaignBossCharacter(actor.character)) return;
+
+  meta.recentPlayerActionTypes.push(action.type);
+  if (meta.recentPlayerActionTypes.length > CAMPAIGN_HISTORY_WINDOW) {
+    meta.recentPlayerActionTypes.shift();
+  }
+
+  const lean = classifyPlayerActionLean(action);
+  if (lean === "other") return;
+
+  const existing = actor.character.campaignBossMemory[meta.chapterId] ?? { physical: 0, magical: 0 };
+  actor.character.campaignBossMemory = {
+    ...actor.character.campaignBossMemory,
+    [meta.chapterId]: { ...existing, [lean]: existing[lean] + 1 },
+  };
+}
+
+async function finishAnyBattle(io: AppServer, battleId: string, state: BattleState): Promise<void> {
+  const meta = campaignMeta.get(battleId);
+  if (meta) {
+    await finishCampaignBattle(io, battleId, state, meta.chapterId);
+    return;
+  }
+  await finishBattle(io, battleId, state);
+}
+
+async function finishCampaignBattle(io: AppServer, battleId: string, state: BattleState, chapterId: string): Promise<void> {
+  const finalState = await resolveCampaignBattle(state, chapterId);
+  io.to(battleId).emit("battle:end", finalState);
+  cleanupBattle(battleId);
+}
+
 function handleBattleAction(io: AppServer, socket: AppSocket, action: Parameters<ClientToServerEvents["battle:action"]>[0]): void {
   const battleId = battleRoomOf.get(socket.id);
   const state = battleId ? battleStates.get(battleId) : undefined;
@@ -211,14 +339,20 @@ function handleBattleAction(io: AppServer, socket: AppSocket, action: Parameters
   try {
     const nextState = applyAction(state, action);
 
+    const meta = campaignMeta.get(battleId);
+    if (meta) {
+      recordCampaignPlayerAction(nextState, action, meta);
+    }
+
     if (nextState.phase === "in-progress") {
       battleStates.set(battleId, nextState);
       io.to(battleId).emit("battle:state", nextState);
       maybeTakeBotTurn(io, battleId);
+      maybeTakeCampaignAiTurn(io, battleId);
       return;
     }
 
-    void finishBattle(io, battleId, nextState);
+    void finishAnyBattle(io, battleId, nextState);
   } catch (err) {
     const message = err instanceof IllegalActionError ? err.message : "Unexpected battle error";
     socket.emit("error", message);
@@ -254,7 +388,7 @@ function handleDisconnect(io: AppServer, socket: AppSocket): void {
     if (!current || current.phase !== "in-progress") return;
 
     const forfeited = forfeitBattle(current, combatant.id);
-    void finishBattle(io, battleId, forfeited);
+    void finishAnyBattle(io, battleId, forfeited);
   }, FORFEIT_GRACE_MS);
   forfeitTimers.set(userId, timer);
 }
@@ -275,6 +409,7 @@ async function finishBattle(io: AppServer, battleId: string, state: BattleState)
 
 function cleanupBattle(battleId: string): void {
   battleStates.delete(battleId);
+  campaignMeta.delete(battleId);
 
   for (const [socketId, roomId] of battleRoomOf) {
     if (roomId === battleId) battleRoomOf.delete(socketId);
