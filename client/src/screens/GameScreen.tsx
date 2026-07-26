@@ -7,11 +7,16 @@ import { PhaserGame } from "../game/PhaserGame.js";
 import { BattleUI } from "../ui/BattleUI.js";
 import { EquipmentPanel } from "../ui/EquipmentPanel.js";
 import { ShopPanel } from "../ui/ShopPanel.js";
+import { StatAllocationPanel } from "../ui/StatAllocationPanel.js";
 import { fetchMyCharacter } from "../api/character.js";
 
 type Status = "idle" | "queued" | "in-battle" | "ended";
 
-export function GameScreen() {
+interface GameScreenProps {
+  onChangeCharacter: () => void;
+}
+
+export function GameScreen({ onChangeCharacter }: GameScreenProps) {
   const { auth, logout } = useAuth();
   const socketRef = useRef<GameSocket | null>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -21,6 +26,7 @@ export function GameScreen() {
   const [equipmentInstances, setEquipmentInstances] = useState<EquipmentInstance[]>([]);
   const [showEquipment, setShowEquipment] = useState(false);
   const [showShop, setShowShop] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   useEffect(() => {
     if (!auth || status !== "idle") return;
@@ -94,6 +100,7 @@ export function GameScreen() {
       <header className="game-header">
         <span>Welcome, {auth.user.username}</span>
         <span>{character?.currency ?? 0} Driftmetal</span>
+        {status === "idle" && <button onClick={onChangeCharacter}>Change Character</button>}
         <button onClick={logout}>Log out</button>
       </header>
 
@@ -106,7 +113,12 @@ export function GameScreen() {
             {showEquipment ? "Hide Equipment" : "View Equipment"}
           </button>
           <button onClick={() => setShowShop((v) => !v)}>{showShop ? "Hide Shop" : "Shop"}</button>
+          <button onClick={() => setShowStats((v) => !v)}>{showStats ? "Hide Stats" : "Stats"}</button>
         </div>
+      )}
+
+      {status === "idle" && showStats && character && (
+        <StatAllocationPanel token={auth.token} character={character} onCharacterChange={setCharacter} />
       )}
 
       {status === "idle" && showEquipment && character && (

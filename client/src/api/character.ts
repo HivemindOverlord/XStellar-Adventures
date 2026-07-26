@@ -29,6 +29,38 @@ export function fetchMyCharacter(token: string): Promise<CharacterProfile> {
   return authedJson<CharacterProfile>("/api/character/me", token);
 }
 
+export interface CharacterSlotSummary {
+  characters: Character[];
+  unlockedCharacterSlots: number;
+}
+
+export function listCharacters(token: string): Promise<CharacterSlotSummary> {
+  return authedJson<CharacterSlotSummary>("/api/character/list", token);
+}
+
+export function createCharacter(token: string, name: string): Promise<Character> {
+  return authedJson<Character>("/api/character/create", token, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function selectCharacter(token: string, characterId: string): Promise<Character> {
+  return authedJson<Character>("/api/character/select", token, {
+    method: "POST",
+    body: JSON.stringify({ characterId }),
+  });
+}
+
+export type AllocatableStat = "maxHp" | "maxMp" | "attack" | "defense" | "magic" | "speed";
+
+export function allocateStat(token: string, stat: AllocatableStat): Promise<Character> {
+  return authedJson<Character>("/api/character/allocate-stat", token, {
+    method: "POST",
+    body: JSON.stringify({ stat }),
+  });
+}
+
 export function equipItem(token: string, instanceId: string): Promise<Character> {
   return authedJson<Character>("/api/character/equip", token, {
     method: "POST",

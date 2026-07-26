@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Character, JobClass, Stats } from "@xstellar/shared";
-import { CLASS_SKILLS, STARTER_INVENTORY } from "@xstellar/shared";
+import { skillIdsForClasses, STARTER_INVENTORY } from "@xstellar/shared";
 
 const JOB_CLASSES: JobClass[] = ["warrior", "mage", "cleric", "rogue"];
 
@@ -32,6 +32,8 @@ export function createBotOpponent(player: Character): Character {
     jobClass,
     level: player.level + bonusLevels,
     xp: 0,
+    unallocatedStatPoints: 0,
+    unlockedClasses: [jobClass],
     currentWinStreak: 0,
     dryStreakWeapon: 0,
     dryStreakArmor: 0,
@@ -39,7 +41,7 @@ export function createBotOpponent(player: Character): Character {
     currency: 0,
     purchasesToday: {},
     spriteKey: `hero_${jobClass}`,
-    skillIds: CLASS_SKILLS[jobClass] ?? [],
+    skillIds: skillIdsForClasses([jobClass]),
     inventory: { ...STARTER_INVENTORY },
     stats: scaleStats(player.stats, multiplier),
   };

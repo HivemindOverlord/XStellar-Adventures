@@ -22,7 +22,7 @@ export async function equipItem(character: Character, instanceId: string): Promi
   if (!item) {
     throw new EquipError("Unknown equipment item");
   }
-  if (item.classLock && item.classLock !== character.jobClass) {
+  if (item.classLock && !character.unlockedClasses.includes(item.classLock)) {
     throw new EquipError(`${item.name} can only be equipped by a ${item.classLock}`);
   }
 

@@ -46,6 +46,12 @@ export const CLASS_SKILLS: Record<JobClass, string[]> = {
   cleric: ["mending_light"],
 };
 
+// Multi-class stacking: a character's available skills are the union of every unlocked
+// class's skill list, not just a single jobClass lookup.
+export function skillIdsForClasses(unlockedClasses: JobClass[]): string[] {
+  return [...new Set(unlockedClasses.flatMap((jobClass) => CLASS_SKILLS[jobClass] ?? []))];
+}
+
 export const ITEMS: Record<string, Item> = {
   willows_tonic: {
     id: "willows_tonic",
