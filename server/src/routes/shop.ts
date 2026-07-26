@@ -4,7 +4,14 @@ import type { ShopSellResponse, ShopStateResponse } from "@xstellar/shared";
 import { getUtcDateString } from "@xstellar/shared";
 import { requireAuth, type AuthedRequest } from "../auth/middleware.js";
 import { getOrCreateStarterCharacter } from "../game/starterCharacter.js";
-import { buyItem, getShopCatalog, refundEligibility, sellItems, ShopError } from "../game/shop.js";
+import {
+  buyItem,
+  getOwnedEquipmentInstanceViews,
+  getShopCatalog,
+  refundEligibility,
+  sellItems,
+  ShopError,
+} from "../game/shop.js";
 
 export const shopRouter = Router();
 
@@ -19,6 +26,7 @@ shopRouter.get("/", async (req, res) => {
     catalog: getShopCatalog(today),
     currency: character.currency,
     refundEligible: refundEligibility(character, today),
+    equipmentInstances: await getOwnedEquipmentInstanceViews(character.id, today),
   };
   res.json(response);
 });
@@ -47,9 +55,14 @@ shopRouter.post("/buy", async (req, res) => {
   }
 });
 
-const sellSchema = z.object({
-  items: z.array(z.object({ itemId: z.string().min(1), quantity: z.number().int().positive() })).min(1),
-});
+const sellSchema = z
+  .object({
+    consumables: z.array(z.object({ itemId: z.string().min(1), quantity: z.number().int().positive() })).default([]),
+    equipment: z.array(z.object({ instanceId: z.string().min(1) })).default([]),
+  })
+  .refine((data) => data.consumables.length > 0 || data.equipment.length > 0, {
+    message: "No items to sell",
+  });
 
 shopRouter.post("/sell", async (req, res) => {
   const parsed = sellSchema.safeParse(req.body);
@@ -62,7 +75,7 @@ shopRouter.post("/sell", async (req, res) => {
   const character = await getOrCreateStarterCharacter(user.id, user.username);
 
   try {
-    const currencyGained = await sellItems(character, parsed.data.items);
+    const currencyGained = await sellItems(character, parsed.data);
     const response: ShopSellResponse = { character, currencyGained };
     res.json(response);
   } catch (err) {

@@ -1,5 +1,5 @@
 import type { Character } from "./character.js";
-import type { EquipmentItem, Rarity } from "./equipment.js";
+import type { EquipmentAcquisitionSource, EquipmentItem, Rarity } from "./equipment.js";
 
 // Steep per-tier curve: roughly 5x the previous tier, so Red sits well out of
 // reach in early gameplay while White stays approachable.
@@ -52,11 +52,27 @@ export interface ShopCatalog {
   equipmentRotation: ShopCatalogEntry[];
 }
 
+// A caller's owned equipment instance, as shown in the shop's sell flow. sellValue is
+// what selling it right now would return, computed the same way the sell endpoint
+// computes it: full catalog price if it's a same-UTC-day shop purchase, 20% otherwise
+// (older shop stock or loot drops, which are never same-day-eligible).
+export interface ShopEquipmentInstanceView {
+  id: string;
+  catalogItemId: string;
+  enhancementLevel: number;
+  acquiredVia: EquipmentAcquisitionSource;
+  purchasedDate?: string;
+  sellValue: number;
+  fullRefundEligible: boolean;
+}
+
 export interface ShopStateResponse {
   catalog: ShopCatalog;
   currency: number;
-  // itemId -> units still eligible for a 100%-refund sell-back today.
+  // Consumable itemId -> units still eligible for a 100%-refund sell-back today.
   refundEligible: Record<string, number>;
+  // Individual owned equipment instances (sold by instance id, not itemId+quantity).
+  equipmentInstances: ShopEquipmentInstanceView[];
 }
 
 export interface ShopBuyRequestBody {
@@ -64,13 +80,18 @@ export interface ShopBuyRequestBody {
   quantity: number;
 }
 
-export interface ShopSellLine {
+export interface ShopSellConsumableLine {
   itemId: string;
   quantity: number;
 }
 
+export interface ShopSellEquipmentLine {
+  instanceId: string;
+}
+
 export interface ShopSellRequestBody {
-  items: ShopSellLine[];
+  consumables: ShopSellConsumableLine[];
+  equipment: ShopSellEquipmentLine[];
 }
 
 export interface ShopSellResponse {
