@@ -8,3 +8,4 @@ export * from "./equipment.js";
 export * from "./shop.js";
 export * from "./campaign.js";
 export * from "./matchmaking.js";
+export * from "./lootOdds.js";

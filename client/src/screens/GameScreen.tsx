@@ -9,6 +9,7 @@ import { EquipmentPanel } from "../ui/EquipmentPanel.js";
 import { ShopPanel } from "../ui/ShopPanel.js";
 import { StatAllocationPanel } from "../ui/StatAllocationPanel.js";
 import { CampaignPanel } from "../ui/CampaignPanel.js";
+import { BattleOddsPanel } from "../ui/BattleOddsPanel.js";
 import { fetchMyCharacter, setBotMatching } from "../api/character.js";
 
 type Status = "idle" | "queued" | "in-battle" | "ended";
@@ -29,6 +30,7 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
   const [showShop, setShowShop] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showCampaign, setShowCampaign] = useState(false);
+  const [showOdds, setShowOdds] = useState(false);
 
   useEffect(() => {
     if (!auth || status !== "idle") return;
@@ -133,6 +135,7 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
           </button>
           <button onClick={() => setShowShop((v) => !v)}>{showShop ? "Hide Shop" : "Shop"}</button>
           <button onClick={() => setShowStats((v) => !v)}>{showStats ? "Hide Stats" : "Stats"}</button>
+          <button onClick={() => setShowOdds((v) => !v)}>{showOdds ? "Hide Battle Odds" : "Battle Odds"}</button>
           {character && (
             <label className="bot-match-toggle">
               <input type="checkbox" checked={character.allowBotMatches} onChange={toggleBotMatches} />
@@ -162,6 +165,8 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
       {status === "idle" && showShop && character && (
         <ShopPanel token={auth.token} character={character} onCharacterChange={setCharacter} />
       )}
+
+      {status === "idle" && showOdds && character && <BattleOddsPanel token={auth.token} character={character} />}
 
       {status === "queued" && <p>Searching for an opponent…</p>}
 

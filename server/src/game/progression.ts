@@ -1,5 +1,11 @@
-import type { BattleReward, BattleState, Character, EquipmentItem, EquipmentSlot, Rarity } from "@xstellar/shared";
-import { applyXp, EQUIPMENT } from "@xstellar/shared";
+import type { BattleReward, BattleState, Character } from "@xstellar/shared";
+import {
+  applyXp,
+  computeEquipmentDropOdds,
+  DRY_STREAK_FIELD,
+  EQUIPMENT_DROP_SLOTS,
+  pickFromDropOdds,
+} from "@xstellar/shared";
 import { prisma } from "../db/prisma.js";
 import { isBotCharacter } from "./botCharacter.js";
 
@@ -29,67 +35,19 @@ function driftmetalForDefeat(opponentLevel: number): number {
   return 5 + opponentLevel * 2;
 }
 
-const EQUIPMENT_SLOTS: EquipmentSlot[] = ["weapon", "armor", "accessory"];
-const DRY_STREAK_FIELD: Record<EquipmentSlot, "dryStreakWeapon" | "dryStreakArmor" | "dryStreakAccessory"> = {
-  weapon: "dryStreakWeapon",
-  armor: "dryStreakArmor",
-  accessory: "dryStreakAccessory",
-};
-
-const BASE_DROP_CHANCE = 0.12;
-const DRY_STREAK_PITY_STEP = 0.03;
-const MAX_DROP_CHANCE = 0.6;
-
-const RARITY_ORDER: Rarity[] = ["white", "green", "blue", "purple", "orange", "red"];
-const BASE_RARITY_WEIGHT: Record<Rarity, number> = {
-  white: 100,
-  green: 35,
-  blue: 12,
-  purple: 4,
-  orange: 1,
-  red: 0.15,
-};
-
-// Higher opponent level and win streak shift weight toward the rarer tiers,
-// mirroring the same scaling knobs used for Driftmetal and XP above.
-function rarityWeight(rarity: Rarity, opponentLevel: number, winStreak: number): number {
-  const tierIndex = RARITY_ORDER.indexOf(rarity);
-  const scale = 1 + opponentLevel * 0.04 + Math.min(winStreak, WIN_STREAK_CAP) * 0.03;
-  return BASE_RARITY_WEIGHT[rarity] * scale ** tierIndex;
-}
-
-function weightedPick<T>(items: T[], weights: number[]): T {
-  const total = weights.reduce((sum, w) => sum + w, 0);
-  let roll = Math.random() * total;
-  for (let i = 0; i < items.length; i++) {
-    roll -= weights[i];
-    if (roll <= 0) return items[i];
-  }
-  return items[items.length - 1];
-}
-
-function pickEquipmentDrop(character: Character, slot: EquipmentSlot, opponentLevel: number): EquipmentItem | undefined {
-  const candidates = Object.values(EQUIPMENT).filter(
-    (item) => item.slot === slot && (!item.classLock || character.unlockedClasses.includes(item.classLock)),
-  );
-  if (candidates.length === 0) return undefined;
-
-  const weights = candidates.map((item) => rarityWeight(item.rarity, opponentLevel, character.currentWinStreak));
-  return weightedPick(candidates, weights);
-}
-
-// Rolls one loot chance per equipment slot for the winner. Dry streaks act as a
-// pity counter: the longer a slot goes without a drop, the more likely the next
-// battle grants one; a successful drop resets that slot's counter to zero.
+// Rolls one loot chance per equipment slot for the winner. Both the odds themselves and the
+// concrete item selection come from shared/src/lootOdds.ts's computeEquipmentDropOdds — the
+// exact same function the /api/loot/odds preview endpoint calls — so a real roll can never
+// disagree with what the player was shown beforehand.
 async function rollItemDrops(character: Character, opponentLevel: number): Promise<string[]> {
   const dropped: string[] = [];
 
-  for (const slot of EQUIPMENT_SLOTS) {
+  for (const slot of EQUIPMENT_DROP_SLOTS) {
+    const odds = computeEquipmentDropOdds(character, slot, opponentLevel);
     const field = DRY_STREAK_FIELD[slot];
-    const chance = Math.min(BASE_DROP_CHANCE + character[field] * DRY_STREAK_PITY_STEP, MAX_DROP_CHANCE);
 
-    if (Math.random() < chance) {
-      const item = pickEquipmentDrop(character, slot, opponentLevel);
+    if (Math.random() < odds.dropChance) {
+      const item = pickFromDropOdds(odds);
       if (item) {
         // Bot opponents have no Character row to satisfy the instance's FK, and their
         // rewards are never persisted anyway (see finishBattle's isBotCharacter filter).
