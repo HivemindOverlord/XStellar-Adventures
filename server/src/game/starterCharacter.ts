@@ -130,6 +130,7 @@ export async function persistCharacterProgress(character: Character): Promise<vo
       completedChapterIds: character.completedChapterIds as Prisma.InputJsonValue,
       campaignBossMemory: character.campaignBossMemory as Prisma.InputJsonValue,
       currentWinStreak: character.currentWinStreak,
+      allowBotMatches: character.allowBotMatches,
       dryStreakWeapon: character.dryStreakWeapon,
       dryStreakArmor: character.dryStreakArmor,
       dryStreakAccessory: character.dryStreakAccessory,
@@ -164,6 +165,7 @@ type CharacterRow = {
   completedChapterIds: Prisma.JsonValue;
   campaignBossMemory: Prisma.JsonValue;
   currentWinStreak: number;
+  allowBotMatches: boolean;
   dryStreakWeapon: number;
   dryStreakArmor: number;
   dryStreakAccessory: number;
@@ -200,6 +202,7 @@ function toSharedCharacter(row: CharacterRow): Character {
     completedChapterIds: (row.completedChapterIds as string[]) ?? [],
     campaignBossMemory: (row.campaignBossMemory as Record<string, { physical: number; magical: number }>) ?? {},
     currentWinStreak: row.currentWinStreak,
+    allowBotMatches: row.allowBotMatches,
     dryStreakWeapon: row.dryStreakWeapon,
     dryStreakArmor: row.dryStreakArmor,
     dryStreakAccessory: row.dryStreakAccessory,

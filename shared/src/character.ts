@@ -23,6 +23,10 @@ export interface Character {
   unallocatedStatPoints: number;
   unlockedClasses: JobClass[];
   currentWinStreak: number;
+  // Opt-out for the PvP queue's bot fallback (server/src/game/matchmaking.ts): when false,
+  // this character's queue entry never gets matched with a synthetic bot opponent and keeps
+  // waiting for a human match instead — the widening power-score bracket still applies.
+  allowBotMatches: boolean;
   stats: Stats;
   skillIds: string[];
   inventory: Record<string, number>;

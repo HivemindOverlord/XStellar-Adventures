@@ -74,3 +74,10 @@ export function unequipSlot(token: string, slot: EquipmentSlot): Promise<Charact
     body: JSON.stringify({ slot }),
   });
 }
+
+export function setBotMatching(token: string, allowBotMatches: boolean): Promise<Character> {
+  return authedJson<Character>("/api/character/set-bot-matching", token, {
+    method: "POST",
+    body: JSON.stringify({ allowBotMatches }),
+  });
+}

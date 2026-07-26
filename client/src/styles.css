@@ -83,8 +83,24 @@ button:disabled {
 .find-match {
   display: flex;
   justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 20vh;
+}
+
+.bot-match-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.bot-match-notice {
+  background: #4a3a70;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-weight: 600;
 }
 
 .equipment-panel {

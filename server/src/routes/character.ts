@@ -124,6 +124,22 @@ characterRouter.post("/equip", async (req, res) => {
   }
 });
 
+const setBotMatchingSchema = z.object({ allowBotMatches: z.boolean() });
+
+characterRouter.post("/set-bot-matching", async (req, res) => {
+  const parsed = setBotMatchingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const { user } = req as AuthedRequest;
+  const character = await getOrCreateStarterCharacter(user.id, user.username);
+  const updated = { ...character, allowBotMatches: parsed.data.allowBotMatches };
+  await persistCharacterProgress(updated);
+  res.json(updated);
+});
+
 const unequipSchema = z.object({ slot: z.enum(["weapon", "armor", "accessory"]) });
 
 characterRouter.post("/unequip", async (req, res) => {

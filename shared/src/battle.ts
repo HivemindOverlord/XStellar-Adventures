@@ -57,4 +57,8 @@ export interface BattleState {
   combatants: Combatant[];
   log: BattleLogEntry[];
   rewards?: Record<string, BattleReward>;
+  // True only for the PvP queue's bot fallback (server/src/game/matchmaking.ts) — the client
+  // must disclose this rather than presenting it as a real PvP match. Absent/false for real
+  // PvP matches and for Story & PvE Campaign battles.
+  isBotMatch?: boolean;
 }
