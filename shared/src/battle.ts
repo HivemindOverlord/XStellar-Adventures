@@ -32,10 +32,15 @@ export interface BattleLogEntry {
 
 export type BattlePhase = "waiting-for-players" | "in-progress" | "victory" | "defeat" | "fled";
 
-export interface BattleReward {
+export interface XpGainResult {
   xpGained: number;
   leveledUp: boolean;
   newLevel: number;
+}
+
+export interface BattleReward extends XpGainResult {
+  currencyGained: number;
+  itemsDropped: string[];
 }
 
 export interface BattleState {

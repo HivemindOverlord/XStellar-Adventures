@@ -104,6 +104,42 @@ button:disabled {
   gap: 8px;
 }
 
+.shop-panel {
+  background: #1c1233;
+  border: 1px solid #4a3a70;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 24px;
+}
+
+.shop-currency {
+  font-weight: 600;
+  color: #f0c94e;
+}
+
+.shop-listing {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-listing li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shop-listing input[type="number"] {
+  width: 56px;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid #4a3a70;
+  background: #10081f;
+  color: inherit;
+}
+
 .battle-view {
   display: flex;
   flex-direction: column;

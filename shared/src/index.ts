@@ -5,3 +5,4 @@ export * from "./events.js";
 export * from "./content.js";
 export * from "./progression.js";
 export * from "./equipment.js";
+export * from "./shop.js";

@@ -1,5 +1,5 @@
 import type { BattleAction, BattleReward, BattleState, Character } from "@xstellar/shared";
-import { ITEMS, SKILLS, xpToNextLevel } from "@xstellar/shared";
+import { EQUIPMENT, ITEMS, SKILLS, xpToNextLevel } from "@xstellar/shared";
 
 interface ActionExtra {
   skillId?: string;
@@ -60,7 +60,15 @@ export function BattleUI({ state, isMyTurn, myCharacter, reward, onAction }: Bat
 
       {reward && (
         <div className="battle-reward">
-          +{reward.xpGained} XP{reward.leveledUp ? ` — Level up! Now level ${reward.newLevel}` : ""}
+          <div>
+            +{reward.xpGained} XP{reward.leveledUp ? ` — Level up! Now level ${reward.newLevel}` : ""}
+          </div>
+          {reward.currencyGained > 0 && <div>You found {reward.currencyGained} Driftmetal</div>}
+          {reward.itemsDropped.length > 0 && (
+            <div>
+              You found: {reward.itemsDropped.map((id) => EQUIPMENT[id]?.name ?? id).join(", ")}
+            </div>
+          )}
         </div>
       )}
 

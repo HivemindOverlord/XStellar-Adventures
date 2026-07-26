@@ -1,11 +1,11 @@
 import type { Character, Stats } from "./character.js";
-import type { BattleReward } from "./battle.js";
+import type { XpGainResult } from "./battle.js";
 
 export function xpToNextLevel(level: number): number {
   return Math.round(20 * level ** 1.6);
 }
 
-export function applyXp(character: Character, amount: number): BattleReward {
+export function applyXp(character: Character, amount: number): XpGainResult {
   character.xp += amount;
   let leveledUp = false;
 

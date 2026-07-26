@@ -22,7 +22,7 @@ export function isBotCharacter(character: Pick<Character, "ownerId">): boolean {
 
 export function createBotOpponent(player: Character): Character {
   const jobClass = JOB_CLASSES[Math.floor(Math.random() * JOB_CLASSES.length)];
-  const multiplier = difficultyMultiplier(player.winStreak);
+  const multiplier = difficultyMultiplier(player.currentWinStreak);
   const bonusLevels = MIN_BONUS_LEVELS + Math.floor(Math.random() * (MAX_BONUS_LEVELS - MIN_BONUS_LEVELS + 1));
 
   return {
@@ -32,7 +32,12 @@ export function createBotOpponent(player: Character): Character {
     jobClass,
     level: player.level + bonusLevels,
     xp: 0,
-    winStreak: 0,
+    currentWinStreak: 0,
+    dryStreakWeapon: 0,
+    dryStreakArmor: 0,
+    dryStreakAccessory: 0,
+    currency: 0,
+    purchasesToday: {},
     spriteKey: `hero_${jobClass}`,
     skillIds: CLASS_SKILLS[jobClass] ?? [],
     inventory: { ...STARTER_INVENTORY },

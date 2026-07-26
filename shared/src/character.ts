@@ -18,7 +18,7 @@ export interface Character {
   jobClass: JobClass;
   level: number;
   xp: number;
-  winStreak: number;
+  currentWinStreak: number;
   stats: Stats;
   skillIds: string[];
   inventory: Record<string, number>;
@@ -26,6 +26,14 @@ export interface Character {
   equippedWeaponId?: string;
   equippedArmorId?: string;
   equippedAccessoryId?: string;
+  // Pity counters: consecutive victories since the character's last equipment
+  // drop in that slot category, used to bias loot-drop odds back in their favor.
+  dryStreakWeapon: number;
+  dryStreakArmor: number;
+  dryStreakAccessory: number;
+  currency: number;
+  purchasesToday: Record<string, number>;
+  purchasesTodayDate?: string;
 }
 
 export interface Skill {
