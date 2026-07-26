@@ -1,18 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { Character, JobClass, Stats } from "@xstellar/shared";
-import { skillIdsForClasses, STARTER_INVENTORY } from "@xstellar/shared";
+import { computePowerScore, skillIdsForClasses, STARTER_INVENTORY } from "@xstellar/shared";
 
 const JOB_CLASSES: JobClass[] = ["warrior", "mage", "cleric", "rogue"];
 
-// Tunable knobs for bot toughness: a baseline of the player's own stats, growing
-// with their win streak so repeat winners keep facing a real challenge.
-const BASE_MULTIPLIER_MIN = 1.15;
-const BASE_MULTIPLIER_MAX = 1.3;
-const STREAK_MULTIPLIER_STEP = 0.03;
-const STREAK_MULTIPLIER_CAP_STREAK = 15;
-const MAX_MULTIPLIER = 1.75;
-const MIN_BONUS_LEVELS = 1;
-const MAX_BONUS_LEVELS = 3;
+// Bot toughness is anchored to the waiting player's own power score (shared/src/matchmaking.ts)
+// rather than a fixed multiplier, so a bot synthesized for a low-power player and one
+// synthesized for a high-power player are both roughly fair fights. A small random jitter
+// keeps bots from being exact stat-for-stat mirrors of the player.
+const JITTER_MIN = 0.95;
+const JITTER_MAX = 1.1;
 
 export const BOT_OWNER_ID_PREFIX = "bot:";
 
@@ -20,23 +17,32 @@ export function isBotCharacter(character: Pick<Character, "ownerId">): boolean {
   return character.ownerId.startsWith(BOT_OWNER_ID_PREFIX);
 }
 
-export function createBotOpponent(player: Character): Character {
+// Builds a synthetic in-memory Combatant-ready Character (never persisted) whose power score
+// roughly matches targetPowerScore, by scaling the waiting player's own base stats. Mirrors
+// how the Story & PvE Campaign agent builds boss Combatants from its chapter catalog, just
+// without a catalog entry since PvP bots aren't hand-authored content.
+export function createBotOpponent(player: Character, targetPowerScore: number): Character {
   const jobClass = JOB_CLASSES[Math.floor(Math.random() * JOB_CLASSES.length)];
-  const multiplier = difficultyMultiplier(player.currentWinStreak);
-  const bonusLevels = MIN_BONUS_LEVELS + Math.floor(Math.random() * (MAX_BONUS_LEVELS - MIN_BONUS_LEVELS + 1));
+  const level = player.level;
+  const jitter = JITTER_MIN + Math.random() * (JITTER_MAX - JITTER_MIN);
+
+  const baseStatBudget = computePowerScore(level, player.stats) - level * 10;
+  const targetStatBudget = Math.max(1, (targetPowerScore - level * 10) * jitter);
+  const multiplier = baseStatBudget > 0 ? targetStatBudget / baseStatBudget : 1;
 
   return {
     id: randomUUID(),
     ownerId: `${BOT_OWNER_ID_PREFIX}${randomUUID()}`,
     name: `${capitalize(jobClass)} Sparring Bot`,
     jobClass,
-    level: player.level + bonusLevels,
+    level,
     xp: 0,
     unallocatedStatPoints: 0,
     unlockedClasses: [jobClass],
     completedChapterIds: [],
     campaignBossMemory: {},
     currentWinStreak: 0,
+    allowBotMatches: true,
     dryStreakWeapon: 0,
     dryStreakArmor: 0,
     dryStreakAccessory: 0,
@@ -47,12 +53,6 @@ export function createBotOpponent(player: Character): Character {
     inventory: { ...STARTER_INVENTORY },
     stats: scaleStats(player.stats, multiplier),
   };
-}
-
-function difficultyMultiplier(winStreak: number): number {
-  const base = BASE_MULTIPLIER_MIN + Math.random() * (BASE_MULTIPLIER_MAX - BASE_MULTIPLIER_MIN);
-  const streakBonus = Math.min(winStreak, STREAK_MULTIPLIER_CAP_STREAK) * STREAK_MULTIPLIER_STEP;
-  return Math.min(base + streakBonus, MAX_MULTIPLIER);
 }
 
 function scaleStats(stats: Stats, multiplier: number): Stats {

@@ -39,6 +39,9 @@ model Character {
   unallocatedStatPoints Int  @default(0)
   unlockedClasses       Json @default("[]")
   currentWinStreak Int @default(0)
+  // PvP queue bot-fallback opt-out (server/src/game/matchmaking.ts). When false, this
+  // character never gets matched with a synthetic bot and keeps waiting for a human instead.
+  allowBotMatches Boolean @default(true)
   dryStreakWeapon    Int @default(0)
   dryStreakArmor     Int @default(0)
   dryStreakAccessory Int @default(0)

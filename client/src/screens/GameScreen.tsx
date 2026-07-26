@@ -9,7 +9,7 @@ import { EquipmentPanel } from "../ui/EquipmentPanel.js";
 import { ShopPanel } from "../ui/ShopPanel.js";
 import { StatAllocationPanel } from "../ui/StatAllocationPanel.js";
 import { CampaignPanel } from "../ui/CampaignPanel.js";
-import { fetchMyCharacter } from "../api/character.js";
+import { fetchMyCharacter, setBotMatching } from "../api/character.js";
 
 type Status = "idle" | "queued" | "in-battle" | "ended";
 
@@ -84,6 +84,16 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
     socketRef.current?.emit("queue:join");
   }
 
+  async function toggleBotMatches() {
+    if (!auth || !character) return;
+    setError(null);
+    try {
+      setCharacter(await setBotMatching(auth.token, !character.allowBotMatches));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update setting");
+    }
+  }
+
   function startChapter(chapterId: string) {
     setError(null);
     setShowCampaign(false);
@@ -123,6 +133,12 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
           </button>
           <button onClick={() => setShowShop((v) => !v)}>{showShop ? "Hide Shop" : "Shop"}</button>
           <button onClick={() => setShowStats((v) => !v)}>{showStats ? "Hide Stats" : "Stats"}</button>
+          {character && (
+            <label className="bot-match-toggle">
+              <input type="checkbox" checked={character.allowBotMatches} onChange={toggleBotMatches} />
+              Match with a training bot if no opponent is found
+            </label>
+          )}
         </div>
       )}
 
@@ -151,6 +167,9 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
 
       {(status === "in-battle" || status === "ended") && battleState && myCombatant && (
         <div className="battle-view">
+          {battleState.isBotMatch && (
+            <p className="bot-match-notice">No opponent found — matched with a training bot</p>
+          )}
           <PhaserGame myUserId={auth.user.id} />
           <BattleUI
             state={battleState}
