@@ -52,6 +52,13 @@ export function selectCharacter(token: string, characterId: string): Promise<Cha
   });
 }
 
+export function setBotMatchPreference(token: string, allow: boolean): Promise<Character> {
+  return authedJson<Character>("/api/character/bot-match-preference", token, {
+    method: "POST",
+    body: JSON.stringify({ allow }),
+  });
+}
+
 export type AllocatableStat = "maxHp" | "maxMp" | "attack" | "defense" | "magic" | "speed";
 
 export function allocateStat(token: string, stat: AllocatableStat): Promise<Character> {

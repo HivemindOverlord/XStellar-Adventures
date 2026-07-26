@@ -7,14 +7,14 @@ import type {
   Combatant,
   ServerToClientEvents,
 } from "@xstellar/shared";
-import { CAMPAIGN_CHAPTERS } from "@xstellar/shared";
+import { CAMPAIGN_CHAPTERS, computeEffectiveStats, EQUIPMENT } from "@xstellar/shared";
 import { verifyToken } from "../auth/jwt.js";
 import { getOrCreateStarterCharacter, persistCharacterProgress } from "./starterCharacter.js";
 import { appendNote, applyAction, createBattle, forfeitBattle, IllegalActionError } from "./battleEngine.js";
 import { enqueue, removeBySocketId, type MatchedPair, type QueuedPlayer } from "./matchmaking.js";
 import { grantBattleRewards } from "./progression.js";
 import { createBotOpponent, isBotCharacter } from "./botCharacter.js";
-import { chooseBotAction } from "./botAi.js";
+import { computeEffectivePowerScore } from "./powerScore.js";
 import { getEquippedInstances } from "./equipment.js";
 import {
   buildCampaignBossCombatant,
@@ -33,21 +33,23 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<strin
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
 const FORFEIT_GRACE_MS = 45_000;
-const BOT_TURN_DELAY_MS = 1_200;
+const AI_TURN_DELAY_MS = 1_200;
 
 const battleRoomOf = new Map<string, string>(); // socketId -> battleId
 const battleRoomOfUser = new Map<string, string>(); // userId -> battleId, survives socket reconnects
 const battleStates = new Map<string, BattleState>();
 const forfeitTimers = new Map<string, ReturnType<typeof setTimeout>>(); // userId -> pending forfeit
 
-interface CampaignMeta {
-  chapterId: string;
-  // Rolling window of the player's own recent action types this fight, capped at 3 — read by
-  // campaignAi's "punish turtling" rule.
+// Shared tracking for any AI-controlled opponent (Story & PvE Campaign boss or a PvP
+// matchmaking bot fallback) — both are driven by campaignAi's chooseCampaignAiAction, so both
+// need the same rolling window of the player's recent action types. campaignChapterId is set
+// only for genuine campaign battles, gating the chapter-specific reward/memory handling below.
+interface AiOpponentMeta {
   recentPlayerActionTypes: BattleActionType[];
+  campaignChapterId?: string;
 }
-const campaignMeta = new Map<string, CampaignMeta>(); // battleId -> campaign metadata
-const CAMPAIGN_HISTORY_WINDOW = 3;
+const aiOpponentMeta = new Map<string, AiOpponentMeta>(); // battleId -> ai opponent metadata
+const AI_HISTORY_WINDOW = 3;
 
 export function registerSocketHandlers(io: AppServer): void {
   io.use((socket, next) => {
@@ -108,10 +110,19 @@ async function handleQueueJoin(io: AppServer, socket: AppSocket): Promise<void> 
   }
 
   const character = await getOrCreateStarterCharacter(socket.data.userId, socket.data.username);
+  const equipmentInstances = await getEquippedInstances(character);
+  const powerScore = computeEffectivePowerScore(character, equipmentInstances);
   socket.emit("queue:joined");
 
   enqueue(
-    { socketId: socket.id, userId: socket.data.userId, character },
+    {
+      socketId: socket.id,
+      userId: socket.data.userId,
+      character,
+      powerScore,
+      allowBotMatches: character.allowBotMatches,
+      equipmentInstances,
+    },
     (lonePlayer) => void startBotBattle(io, lonePlayer),
     (match) => void startHumanBattle(io, match),
   );
@@ -119,10 +130,6 @@ async function handleQueueJoin(io: AppServer, socket: AppSocket): Promise<void> 
 
 async function startHumanBattle(io: AppServer, match: MatchedPair): Promise<void> {
   const [playerA, playerB] = match.players;
-  const [instancesA, instancesB] = await Promise.all([
-    getEquippedInstances(playerA.character),
-    getEquippedInstances(playerB.character),
-  ]);
 
   // Side is a fixed slot for this battle instance ("party" = first queued), not an
   // ownership label — each client renders its own character by matching ownerId.
@@ -133,7 +140,7 @@ async function startHumanBattle(io: AppServer, match: MatchedPair): Promise<void
       side: "party",
       isDefending: false,
       isDefeated: false,
-      equipmentInstances: instancesA,
+      equipmentInstances: playerA.equipmentInstances,
     },
     {
       id: playerB.character.id,
@@ -141,7 +148,7 @@ async function startHumanBattle(io: AppServer, match: MatchedPair): Promise<void
       side: "enemy",
       isDefending: false,
       isDefeated: false,
-      equipmentInstances: instancesB,
+      equipmentInstances: playerB.equipmentInstances,
     },
   ];
 
@@ -159,8 +166,8 @@ async function startBotBattle(io: AppServer, player: QueuedPlayer): Promise<void
   if (!socket || battleRoomOfUser.has(player.userId)) return;
 
   const battleId = randomUUID();
-  const bot = createBotOpponent(player.character);
-  const playerInstances = await getEquippedInstances(player.character);
+  const playerEffectiveStats = computeEffectiveStats(player.character, EQUIPMENT, player.equipmentInstances);
+  const bot = createBotOpponent(player.character, playerEffectiveStats);
   const combatants: Combatant[] = [
     {
       id: player.character.id,
@@ -168,7 +175,7 @@ async function startBotBattle(io: AppServer, player: QueuedPlayer): Promise<void
       side: "party",
       isDefending: false,
       isDefeated: false,
-      equipmentInstances: playerInstances,
+      equipmentInstances: player.equipmentInstances,
     },
     {
       id: bot.id,
@@ -183,9 +190,10 @@ async function startBotBattle(io: AppServer, player: QueuedPlayer): Promise<void
   battleRoomOf.set(player.socketId, battleId);
   battleRoomOfUser.set(player.userId, battleId);
   void socket.join(battleId);
+  aiOpponentMeta.set(battleId, { recentPlayerActionTypes: [] });
 
-  beginBattle(io, battleId, combatants);
-  maybeTakeBotTurn(io, battleId);
+  beginBattle(io, battleId, combatants, { isBotMatch: true });
+  maybeTakeAiOpponentTurn(io, battleId);
 }
 
 async function handleCampaignStart(io: AppServer, socket: AppSocket, chapterId: string): Promise<void> {
@@ -228,54 +236,32 @@ async function handleCampaignStart(io: AppServer, socket: AppSocket, chapterId: 
   battleRoomOf.set(socket.id, battleId);
   battleRoomOfUser.set(socket.data.userId, battleId);
   void socket.join(battleId);
-  campaignMeta.set(battleId, { chapterId, recentPlayerActionTypes: [] });
+  aiOpponentMeta.set(battleId, { recentPlayerActionTypes: [], campaignChapterId: chapterId });
 
   beginBattle(io, battleId, combatants);
-  maybeTakeCampaignAiTurn(io, battleId);
+  maybeTakeAiOpponentTurn(io, battleId);
 }
 
-function beginBattle(io: AppServer, battleId: string, combatants: Combatant[]): void {
-  const state = createBattle(battleId, combatants);
+function beginBattle(io: AppServer, battleId: string, combatants: Combatant[], options: { isBotMatch?: boolean } = {}): void {
+  const state: BattleState = { ...createBattle(battleId, combatants), isBotMatch: options.isBotMatch ?? false };
   battleStates.set(battleId, state);
   io.to(battleId).emit("battle:start", state);
 }
 
-function maybeTakeBotTurn(io: AppServer, battleId: string): void {
+// Drives the active combatant's turn whenever it belongs to an AI-controlled opponent —
+// either a Story & PvE Campaign boss or a PvP matchmaking bot fallback. Both use the same
+// campaignAi module (no separate bot AI implementation).
+function maybeTakeAiOpponentTurn(io: AppServer, battleId: string): void {
   const state = battleStates.get(battleId);
-  if (!state || state.phase !== "in-progress") return;
+  const meta = aiOpponentMeta.get(battleId);
+  if (!state || !meta || state.phase !== "in-progress") return;
 
   const active = state.combatants.find((c) => c.id === state.activeCombatantId);
-  if (!active || !isBotCharacter(active.character)) return;
+  if (!active || !(isCampaignBossCharacter(active.character) || isBotCharacter(active.character))) return;
 
   setTimeout(() => {
     const current = battleStates.get(battleId);
-    if (!current || current.phase !== "in-progress" || current.activeCombatantId !== active.id) return;
-
-    const action = chooseBotAction(current, active);
-    const nextState = applyAction(current, action);
-
-    if (nextState.phase === "in-progress") {
-      battleStates.set(battleId, nextState);
-      io.to(battleId).emit("battle:state", nextState);
-      maybeTakeBotTurn(io, battleId);
-      return;
-    }
-
-    void finishBattle(io, battleId, nextState);
-  }, BOT_TURN_DELAY_MS);
-}
-
-function maybeTakeCampaignAiTurn(io: AppServer, battleId: string): void {
-  const meta = campaignMeta.get(battleId);
-  const state = battleStates.get(battleId);
-  if (!meta || !state || state.phase !== "in-progress") return;
-
-  const active = state.combatants.find((c) => c.id === state.activeCombatantId);
-  if (!active || !isCampaignBossCharacter(active.character)) return;
-
-  setTimeout(() => {
-    const current = battleStates.get(battleId);
-    const currentMeta = campaignMeta.get(battleId);
+    const currentMeta = aiOpponentMeta.get(battleId);
     if (!current || !currentMeta || current.phase !== "in-progress" || current.activeCombatantId !== active.id) return;
 
     const action = chooseCampaignAiAction(current, active, currentMeta.recentPlayerActionTypes);
@@ -284,39 +270,42 @@ function maybeTakeCampaignAiTurn(io: AppServer, battleId: string): void {
     if (nextState.phase === "in-progress") {
       battleStates.set(battleId, nextState);
       io.to(battleId).emit("battle:state", nextState);
-      maybeTakeCampaignAiTurn(io, battleId);
+      maybeTakeAiOpponentTurn(io, battleId);
       return;
     }
 
-    void finishCampaignBattle(io, battleId, nextState, currentMeta.chapterId);
-  }, BOT_TURN_DELAY_MS);
+    void finishAnyBattle(io, battleId, nextState);
+  }, AI_TURN_DELAY_MS);
 }
 
-// Records a just-succeeded player action into this fight's rolling defend-watch window and
-// into the character's cross-attempt physical/magical lean tally for this chapter's boss.
-function recordCampaignPlayerAction(nextState: BattleState, action: Parameters<ClientToServerEvents["battle:action"]>[0], meta: CampaignMeta): void {
+// Records a just-succeeded player action into this fight's rolling defend-watch window (read
+// by campaignAi's "punish turtling" rule) and, for genuine campaign battles only, into the
+// character's cross-attempt physical/magical lean tally for that chapter's boss.
+function recordAiOpponentPlayerAction(nextState: BattleState, action: Parameters<ClientToServerEvents["battle:action"]>[0], meta: AiOpponentMeta): void {
   const actor = nextState.combatants.find((c) => c.id === action.actorId);
-  if (!actor || isCampaignBossCharacter(actor.character)) return;
+  if (!actor || isCampaignBossCharacter(actor.character) || isBotCharacter(actor.character)) return;
 
   meta.recentPlayerActionTypes.push(action.type);
-  if (meta.recentPlayerActionTypes.length > CAMPAIGN_HISTORY_WINDOW) {
+  if (meta.recentPlayerActionTypes.length > AI_HISTORY_WINDOW) {
     meta.recentPlayerActionTypes.shift();
   }
+
+  if (!meta.campaignChapterId) return;
 
   const lean = classifyPlayerActionLean(action);
   if (lean === "other") return;
 
-  const existing = actor.character.campaignBossMemory[meta.chapterId] ?? { physical: 0, magical: 0 };
+  const existing = actor.character.campaignBossMemory[meta.campaignChapterId] ?? { physical: 0, magical: 0 };
   actor.character.campaignBossMemory = {
     ...actor.character.campaignBossMemory,
-    [meta.chapterId]: { ...existing, [lean]: existing[lean] + 1 },
+    [meta.campaignChapterId]: { ...existing, [lean]: existing[lean] + 1 },
   };
 }
 
 async function finishAnyBattle(io: AppServer, battleId: string, state: BattleState): Promise<void> {
-  const meta = campaignMeta.get(battleId);
-  if (meta) {
-    await finishCampaignBattle(io, battleId, state, meta.chapterId);
+  const meta = aiOpponentMeta.get(battleId);
+  if (meta?.campaignChapterId) {
+    await finishCampaignBattle(io, battleId, state, meta.campaignChapterId);
     return;
   }
   await finishBattle(io, battleId, state);
@@ -339,16 +328,15 @@ function handleBattleAction(io: AppServer, socket: AppSocket, action: Parameters
   try {
     const nextState = applyAction(state, action);
 
-    const meta = campaignMeta.get(battleId);
+    const meta = aiOpponentMeta.get(battleId);
     if (meta) {
-      recordCampaignPlayerAction(nextState, action, meta);
+      recordAiOpponentPlayerAction(nextState, action, meta);
     }
 
     if (nextState.phase === "in-progress") {
       battleStates.set(battleId, nextState);
       io.to(battleId).emit("battle:state", nextState);
-      maybeTakeBotTurn(io, battleId);
-      maybeTakeCampaignAiTurn(io, battleId);
+      maybeTakeAiOpponentTurn(io, battleId);
       return;
     }
 
@@ -409,7 +397,7 @@ async function finishBattle(io: AppServer, battleId: string, state: BattleState)
 
 function cleanupBattle(battleId: string): void {
   battleStates.delete(battleId);
-  campaignMeta.delete(battleId);
+  aiOpponentMeta.delete(battleId);
 
   for (const [socketId, roomId] of battleRoomOf) {
     if (roomId === battleId) battleRoomOf.delete(socketId);
