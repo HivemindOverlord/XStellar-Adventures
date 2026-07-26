@@ -260,7 +260,7 @@ function handleDisconnect(io: AppServer, socket: AppSocket): void {
 }
 
 async function finishBattle(io: AppServer, battleId: string, state: BattleState): Promise<void> {
-  const rewards = grantBattleRewards(state);
+  const rewards = await grantBattleRewards(state);
   const finalState: BattleState = { ...state, rewards };
 
   await Promise.all(
