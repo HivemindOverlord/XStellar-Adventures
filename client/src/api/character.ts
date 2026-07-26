@@ -1,4 +1,4 @@
-import type { Character, EquipmentSlot } from "@xstellar/shared";
+import type { Character, EquipmentInstance, EquipmentSlot } from "@xstellar/shared";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000";
 
@@ -20,14 +20,19 @@ async function authedJson<T>(path: string, token: string, options: RequestInit =
   return res.json() as Promise<T>;
 }
 
-export function fetchMyCharacter(token: string): Promise<Character> {
-  return authedJson<Character>("/api/character/me", token);
+export interface CharacterProfile {
+  character: Character;
+  equipmentInstances: EquipmentInstance[];
 }
 
-export function equipItem(token: string, itemId: string): Promise<Character> {
+export function fetchMyCharacter(token: string): Promise<CharacterProfile> {
+  return authedJson<CharacterProfile>("/api/character/me", token);
+}
+
+export function equipItem(token: string, instanceId: string): Promise<Character> {
   return authedJson<Character>("/api/character/equip", token, {
     method: "POST",
-    body: JSON.stringify({ itemId }),
+    body: JSON.stringify({ instanceId }),
   });
 }
 

@@ -1,4 +1,5 @@
 import type { Character } from "./character.js";
+import type { EquipmentInstance } from "./equipment.js";
 
 export type CombatantSide = "party" | "enemy";
 
@@ -9,6 +10,10 @@ export interface Combatant {
   isDefending: boolean;
   isDefeated: boolean;
   attackBuff?: { amount: number; turnsRemaining: number };
+  // Snapshot of the character's equipped-instance rows at battle start, resolved once since
+  // equipment can't be swapped mid-battle (Phase 1 scope) — lets computeEffectiveStats
+  // resolve equippedWeaponId/ArmorId/AccessoryId (instance ids) without a DB round-trip.
+  equipmentInstances: EquipmentInstance[];
 }
 
 export type BattleActionType = "attack" | "skill" | "item" | "defend" | "flee";

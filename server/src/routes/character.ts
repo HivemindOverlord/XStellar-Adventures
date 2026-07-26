@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "../auth/middleware.js";
 import { getOrCreateStarterCharacter } from "../game/starterCharacter.js";
-import { EquipError, equipItem, unequipSlot } from "../game/equipment.js";
+import { EquipError, equipItem, listEquipmentInstances, unequipSlot } from "../game/equipment.js";
 
 export const characterRouter = Router();
 
@@ -11,10 +11,11 @@ characterRouter.use(requireAuth);
 characterRouter.get("/me", async (req, res) => {
   const { user } = req as AuthedRequest;
   const character = await getOrCreateStarterCharacter(user.id, user.username);
-  res.json(character);
+  const equipmentInstances = await listEquipmentInstances(character.id);
+  res.json({ character, equipmentInstances });
 });
 
-const equipSchema = z.object({ itemId: z.string().min(1) });
+const equipSchema = z.object({ instanceId: z.string().min(1) });
 
 characterRouter.post("/equip", async (req, res) => {
   const parsed = equipSchema.safeParse(req.body);
@@ -27,7 +28,7 @@ characterRouter.post("/equip", async (req, res) => {
   const character = await getOrCreateStarterCharacter(user.id, user.username);
 
   try {
-    const updated = await equipItem(character, parsed.data.itemId);
+    const updated = await equipItem(character, parsed.data.instanceId);
     res.json(updated);
   } catch (err) {
     if (err instanceof EquipError) {

@@ -1,5 +1,5 @@
 import type { Character } from "@xstellar/shared";
-import { CLASS_SKILLS, STARTER_INVENTORY } from "@xstellar/shared";
+import { CLASS_SKILLS, STARTER_EQUIPMENT, STARTER_INVENTORY } from "@xstellar/shared";
 import { prisma } from "../db/prisma.js";
 import type { Prisma } from "@prisma/client";
 
@@ -31,6 +31,15 @@ export async function getOrCreateStarterCharacter(userId: string, username: stri
       inventory: STARTER_INVENTORY as Prisma.InputJsonValue,
       ...STARTER_STATS,
     },
+  });
+
+  await prisma.characterEquipmentInstance.createMany({
+    data: STARTER_EQUIPMENT.map((catalogItemId) => ({
+      characterId: created.id,
+      catalogItemId,
+      acquiredVia: "loot",
+      purchasedDate: null,
+    })),
   });
 
   return toSharedCharacter(created);

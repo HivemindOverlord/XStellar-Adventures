@@ -4,7 +4,7 @@ import { computeEffectiveStats, EQUIPMENT, ITEMS, SKILLS } from "@xstellar/share
 const BUFF_DURATION_TURNS = 3;
 
 function effectiveStats(combatant: Combatant) {
-  return computeEffectiveStats(combatant.character, EQUIPMENT);
+  return computeEffectiveStats(combatant.character, EQUIPMENT, combatant.equipmentInstances);
 }
 
 export function createBattle(battleId: string, combatants: Combatant[]): BattleState {

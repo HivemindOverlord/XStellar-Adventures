@@ -1,11 +1,12 @@
 import { useState } from "react";
-import type { Character, EquipmentSlot } from "@xstellar/shared";
+import type { Character, EquipmentInstance, EquipmentSlot } from "@xstellar/shared";
 import { EQUIPMENT } from "@xstellar/shared";
 import { equipItem, unequipSlot } from "../api/character.js";
 
 interface EquipmentPanelProps {
   token: string;
   character: Character;
+  equipmentInstances: EquipmentInstance[];
   onCharacterChange: (character: Character) => void;
 }
 
@@ -19,20 +20,17 @@ const SLOTS: Array<{
   { slot: "accessory", label: "Accessory", idKey: "equippedAccessoryId" },
 ];
 
-export function EquipmentPanel({ token, character, onCharacterChange }: EquipmentPanelProps) {
+export function EquipmentPanel({ token, character, equipmentInstances, onCharacterChange }: EquipmentPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const ownedEquipment = Object.entries(character.inventory)
-    .filter(([, count]) => count > 0)
-    .map(([id]) => EQUIPMENT[id])
-    .filter((item): item is NonNullable<typeof item> => item !== undefined);
+  const instanceById = new Map(equipmentInstances.map((instance) => [instance.id, instance]));
 
-  async function handleEquip(itemId: string) {
+  async function handleEquip(instanceId: string) {
     setError(null);
     setBusy(true);
     try {
-      onCharacterChange(await equipItem(token, itemId));
+      onCharacterChange(await equipItem(token, instanceId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to equip item");
     } finally {
@@ -59,8 +57,9 @@ export function EquipmentPanel({ token, character, onCharacterChange }: Equipmen
 
       <ul className="equipment-slots">
         {SLOTS.map(({ slot, label, idKey }) => {
-          const equippedId = character[idKey];
-          const equippedItem = equippedId ? EQUIPMENT[equippedId] : undefined;
+          const equippedInstanceId = character[idKey];
+          const equippedInstance = equippedInstanceId ? instanceById.get(equippedInstanceId) : undefined;
+          const equippedItem = equippedInstance ? EQUIPMENT[equippedInstance.catalogItemId] : undefined;
           return (
             <li key={slot}>
               <strong>{label}:</strong>{" "}
@@ -81,14 +80,16 @@ export function EquipmentPanel({ token, character, onCharacterChange }: Equipmen
 
       <h4>Owned Equipment</h4>
       <ul className="equipment-inventory">
-        {ownedEquipment.length === 0 && <li>No equipment owned yet</li>}
-        {ownedEquipment.map((item) => {
+        {equipmentInstances.length === 0 && <li>No equipment owned yet</li>}
+        {equipmentInstances.map((instance) => {
+          const item = EQUIPMENT[instance.catalogItemId];
+          if (!item) return null;
           const classLocked = item.classLock !== undefined && item.classLock !== character.jobClass;
           return (
-            <li key={item.id}>
+            <li key={instance.id}>
               {item.name} ({item.slot}, {item.rarity})
               {item.classLock && <span> — {item.classLock} only</span>}{" "}
-              <button disabled={busy || classLocked} onClick={() => handleEquip(item.id)}>
+              <button disabled={busy || classLocked} onClick={() => handleEquip(instance.id)}>
                 Equip
               </button>
             </li>
