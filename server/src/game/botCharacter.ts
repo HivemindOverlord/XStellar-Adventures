@@ -4,13 +4,15 @@ import { skillIdsForClasses, STARTER_INVENTORY } from "@xstellar/shared";
 
 const JOB_CLASSES: JobClass[] = ["warrior", "mage", "cleric", "rogue"];
 
-// Tunable knobs for bot toughness: a baseline of the player's own stats, growing
-// with their win streak so repeat winners keep facing a real challenge.
-const BASE_MULTIPLIER_MIN = 1.15;
-const BASE_MULTIPLIER_MAX = 1.3;
-const STREAK_MULTIPLIER_STEP = 0.03;
+// Tunable knobs for bot toughness — matchmaking fairness is the goal here, not a deliberately
+// hard boss: the bot's stats are scaled off the waiting player's own EFFECTIVE stats (base +
+// equipped gear), centered on roughly matching their power score, with a small streak-based
+// edge on top so repeat winners keep facing a slightly tougher fallback opponent.
+const BASE_MULTIPLIER_MIN = 1.0;
+const BASE_MULTIPLIER_MAX = 1.1;
+const STREAK_MULTIPLIER_STEP = 0.02;
 const STREAK_MULTIPLIER_CAP_STREAK = 15;
-const MAX_MULTIPLIER = 1.75;
+const MAX_MULTIPLIER = 1.4;
 const MIN_BONUS_LEVELS = 1;
 const MAX_BONUS_LEVELS = 3;
 
@@ -20,7 +22,9 @@ export function isBotCharacter(character: Pick<Character, "ownerId">): boolean {
   return character.ownerId.startsWith(BOT_OWNER_ID_PREFIX);
 }
 
-export function createBotOpponent(player: Character): Character {
+// playerEffectiveStats should already include the waiting player's equipped-gear bonuses
+// (see computeEffectiveStats) so a heavily-geared player doesn't get an easy bot.
+export function createBotOpponent(player: Character, playerEffectiveStats: Stats): Character {
   const jobClass = JOB_CLASSES[Math.floor(Math.random() * JOB_CLASSES.length)];
   const multiplier = difficultyMultiplier(player.currentWinStreak);
   const bonusLevels = MIN_BONUS_LEVELS + Math.floor(Math.random() * (MAX_BONUS_LEVELS - MIN_BONUS_LEVELS + 1));
@@ -37,6 +41,7 @@ export function createBotOpponent(player: Character): Character {
     completedChapterIds: [],
     campaignBossMemory: {},
     currentWinStreak: 0,
+    allowBotMatches: true,
     dryStreakWeapon: 0,
     dryStreakArmor: 0,
     dryStreakAccessory: 0,
@@ -45,7 +50,7 @@ export function createBotOpponent(player: Character): Character {
     spriteKey: `hero_${jobClass}`,
     skillIds: skillIdsForClasses([jobClass]),
     inventory: { ...STARTER_INVENTORY },
-    stats: scaleStats(player.stats, multiplier),
+    stats: scaleStats(playerEffectiveStats, multiplier),
   };
 }
 

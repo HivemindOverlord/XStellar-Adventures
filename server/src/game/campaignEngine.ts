@@ -39,6 +39,7 @@ export function buildCampaignBossCombatant(chapterId: string, playerCharacter: C
     completedChapterIds: [],
     campaignBossMemory: {},
     currentWinStreak: 0,
+    allowBotMatches: true,
     dryStreakWeapon: 0,
     dryStreakArmor: 0,
     dryStreakAccessory: 0,

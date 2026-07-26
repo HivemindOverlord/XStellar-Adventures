@@ -20,6 +20,7 @@ export function createBattle(battleId: string, combatants: Combatant[]): BattleS
     activeCombatantId: turnOrder[0] ?? null,
     combatants,
     log: [],
+    isBotMatch: false,
   };
 }
 

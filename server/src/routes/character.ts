@@ -8,6 +8,7 @@ import {
   listCharacters,
   persistCharacterProgress,
   selectCharacter,
+  setAllowBotMatches,
 } from "../game/starterCharacter.js";
 import { EquipError, equipItem, listEquipmentInstances, unequipSlot } from "../game/equipment.js";
 import { allocateStatPoint, StatAllocationError, type AllocatableStat } from "../game/statAllocation.js";
@@ -98,6 +99,21 @@ characterRouter.post("/allocate-stat", async (req, res) => {
     }
     throw err;
   }
+});
+
+const botMatchPreferenceSchema = z.object({ allow: z.boolean() });
+
+characterRouter.post("/bot-match-preference", async (req, res) => {
+  const parsed = botMatchPreferenceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const { user } = req as AuthedRequest;
+  const character = await getOrCreateStarterCharacter(user.id, user.username);
+  const updated = await setAllowBotMatches(character, parsed.data.allow);
+  res.json(updated);
 });
 
 const equipSchema = z.object({ instanceId: z.string().min(1) });

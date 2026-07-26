@@ -45,6 +45,9 @@ export interface Character {
   // chapter's boss across every attempt (win or loss) — the campaign AI's adaptive-defense
   // rule reads this when building the boss for the next attempt.
   campaignBossMemory: Record<string, { physical: number; magical: number }>;
+  // Opt-out for PvP matchmaking's bot fallback. False means the queue never substitutes a
+  // bot for this player — they keep waiting for a human match (widening bracket) only.
+  allowBotMatches: boolean;
 }
 
 export interface Skill {

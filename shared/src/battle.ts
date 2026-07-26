@@ -57,4 +57,8 @@ export interface BattleState {
   combatants: Combatant[];
   log: BattleLogEntry[];
   rewards?: Record<string, BattleReward>;
+  // True only for matchmaking's bot-fallback battles — the client must disclose this rather
+  // than presenting it as a real PvP match. Story & PvE Campaign boss fights are not "bot
+  // matches" in this sense (the player explicitly chose to fight a story boss).
+  isBotMatch: boolean;
 }

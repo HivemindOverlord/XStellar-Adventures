@@ -25,41 +25,43 @@ model User {
 }
 
 model Character {
-  id        String   @id @default(uuid())
-  owner     User     @relation(fields: [ownerId], references: [id])
-  ownerId   String
-  name      String
+  id                    String   @id @default(uuid())
+  owner                 User     @relation(fields: [ownerId], references: [id])
+  ownerId               String
+  name                  String
   // Ordering key for the character-select screen (a UUID id isn't creation-ordered).
-  createdAt DateTime @default(now())
+  createdAt             DateTime @default(now())
   // Null until the first class-unlock threshold is crossed. Informational display field
   // ("first class unlocked") once set — skill access is driven by unlockedClasses.
-  jobClass  String?
-  level     Int    @default(1)
-  xp        Int    @default(0)
-  unallocatedStatPoints Int  @default(0)
-  unlockedClasses       Json @default("[]")
-  currentWinStreak Int @default(0)
-  dryStreakWeapon    Int @default(0)
-  dryStreakArmor     Int @default(0)
-  dryStreakAccessory Int @default(0)
-  currency           Int @default(0)
-  purchasesToday     Json @default("{}")
-  purchasesTodayDate String?
+  jobClass              String?
+  level                 Int      @default(1)
+  xp                    Int      @default(0)
+  unallocatedStatPoints Int      @default(0)
+  unlockedClasses       Json     @default("[]")
+  currentWinStreak      Int      @default(0)
+  // Opt-out for PvP matchmaking's bot fallback (see Character.allowBotMatches in shared/).
+  allowBotMatches       Boolean  @default(true)
+  dryStreakWeapon       Int      @default(0)
+  dryStreakArmor        Int      @default(0)
+  dryStreakAccessory    Int      @default(0)
+  currency              Int      @default(0)
+  purchasesToday        Json     @default("{}")
+  purchasesTodayDate    String?
   // Story & PvE Campaign: chapter ids this character has first-cleared.
-  completedChapterIds Json @default("[]")
+  completedChapterIds   Json     @default("[]")
   // Per-chapter { physical, magical } action tally against that chapter's boss, accumulated
   // across every attempt — read by the campaign AI's adaptive-defense rule.
-  campaignBossMemory  Json @default("{}")
-  maxHp     Int
-  hp        Int
-  maxMp     Int
-  mp        Int
-  attack    Int
-  defense   Int
-  magic     Int
-  speed     Int
-  spriteKey String
-  inventory Json   @default("{}")
+  campaignBossMemory    Json     @default("{}")
+  maxHp                 Int
+  hp                    Int
+  maxMp                 Int
+  mp                    Int
+  attack                Int
+  defense               Int
+  magic                 Int
+  speed                 Int
+  spriteKey             String
+  inventory             Json     @default("{}")
 
   // These reference a CharacterEquipmentInstance's id, not a catalog item id directly.
   equippedWeaponId    String?
