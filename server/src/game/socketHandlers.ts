@@ -13,6 +13,7 @@ import { enqueue, removeBySocketId, type MatchedPair, type QueuedPlayer } from "
 import { grantBattleRewards } from "./progression.js";
 import { createBotOpponent, isBotCharacter } from "./botCharacter.js";
 import { chooseBotAction } from "./botAi.js";
+import { getEquippedInstances } from "./equipment.js";
 
 interface SocketData {
   userId: string;
@@ -93,12 +94,17 @@ async function handleQueueJoin(io: AppServer, socket: AppSocket): Promise<void> 
   enqueue(
     { socketId: socket.id, userId: socket.data.userId, character },
     (lonePlayer) => void startBotBattle(io, lonePlayer),
-    (match) => startHumanBattle(io, match),
+    (match) => void startHumanBattle(io, match),
   );
 }
 
-function startHumanBattle(io: AppServer, match: MatchedPair): void {
+async function startHumanBattle(io: AppServer, match: MatchedPair): Promise<void> {
   const [playerA, playerB] = match.players;
+  const [instancesA, instancesB] = await Promise.all([
+    getEquippedInstances(playerA.character),
+    getEquippedInstances(playerB.character),
+  ]);
+
   // Side is a fixed slot for this battle instance ("party" = first queued), not an
   // ownership label — each client renders its own character by matching ownerId.
   const combatants: Combatant[] = [
@@ -108,6 +114,7 @@ function startHumanBattle(io: AppServer, match: MatchedPair): void {
       side: "party",
       isDefending: false,
       isDefeated: false,
+      equipmentInstances: instancesA,
     },
     {
       id: playerB.character.id,
@@ -115,6 +122,7 @@ function startHumanBattle(io: AppServer, match: MatchedPair): void {
       side: "enemy",
       isDefending: false,
       isDefeated: false,
+      equipmentInstances: instancesB,
     },
   ];
 
@@ -133,6 +141,7 @@ async function startBotBattle(io: AppServer, player: QueuedPlayer): Promise<void
 
   const battleId = randomUUID();
   const bot = createBotOpponent(player.character);
+  const playerInstances = await getEquippedInstances(player.character);
   const combatants: Combatant[] = [
     {
       id: player.character.id,
@@ -140,6 +149,7 @@ async function startBotBattle(io: AppServer, player: QueuedPlayer): Promise<void
       side: "party",
       isDefending: false,
       isDefeated: false,
+      equipmentInstances: playerInstances,
     },
     {
       id: bot.id,
@@ -147,6 +157,7 @@ async function startBotBattle(io: AppServer, player: QueuedPlayer): Promise<void
       side: "enemy",
       isDefending: false,
       isDefeated: false,
+      equipmentInstances: [],
     },
   ];
 

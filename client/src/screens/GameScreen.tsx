@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { BattleAction, BattleState, Character } from "@xstellar/shared";
+import type { BattleAction, BattleState, Character, EquipmentInstance } from "@xstellar/shared";
 import { useAuth } from "../state/AuthContext.js";
 import { createGameSocket, type GameSocket } from "../net/socket.js";
 import { eventBus } from "../game/EventBus.js";
@@ -18,13 +18,17 @@ export function GameScreen() {
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [character, setCharacter] = useState<Character | null>(null);
+  const [equipmentInstances, setEquipmentInstances] = useState<EquipmentInstance[]>([]);
   const [showEquipment, setShowEquipment] = useState(false);
   const [showShop, setShowShop] = useState(false);
 
   useEffect(() => {
     if (!auth || status !== "idle") return;
     fetchMyCharacter(auth.token)
-      .then(setCharacter)
+      .then((profile) => {
+        setCharacter(profile.character);
+        setEquipmentInstances(profile.equipmentInstances);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load character"));
   }, [auth, status]);
 
@@ -106,7 +110,12 @@ export function GameScreen() {
       )}
 
       {status === "idle" && showEquipment && character && (
-        <EquipmentPanel token={auth.token} character={character} onCharacterChange={setCharacter} />
+        <EquipmentPanel
+          token={auth.token}
+          character={character}
+          equipmentInstances={equipmentInstances}
+          onCharacterChange={setCharacter}
+        />
       )}
 
       {status === "idle" && showShop && character && (

@@ -225,6 +225,8 @@ export const STARTER_INVENTORY: Record<string, number> = {
   willows_tonic: 2,
   quix_ember: 1,
   bruces_whetstone: 1,
-  scouts_dagger: 1,
-  padded_vest: 1,
 };
+
+// Catalog ids seeded as CharacterEquipmentInstance rows for a brand-new character (not
+// inventory entries — equipment ownership is tracked as individual instances, not counts).
+export const STARTER_EQUIPMENT: string[] = ["scouts_dagger", "padded_vest"];

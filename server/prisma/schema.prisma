@@ -41,9 +41,33 @@ model Character {
   spriteKey String
   inventory Json   @default("{}")
 
+  // These reference a CharacterEquipmentInstance's id, not a catalog item id directly.
   equippedWeaponId    String?
   equippedArmorId     String?
   equippedAccessoryId String?
 
+  equipmentInstances CharacterEquipmentInstance[]
+
   @@index([ownerId])
+}
+
+model CharacterEquipmentInstance {
+  id            String    @id @default(uuid())
+  character     Character @relation(fields: [characterId], references: [id])
+  characterId   String
+  catalogItemId String
+
+  // Reserved for a future Enhancement/Fusion phase — no gameplay effect yet.
+  enhancementLevel Int @default(0)
+
+  // "loot" | "shop"
+  acquiredVia String
+
+  // UTC "YYYY-MM-DD", set only when acquiredVia is "shop" — used by the Shop system for
+  // same-day full-refund eligibility instead of a separate tracking map.
+  purchasedDate String?
+
+  createdAt DateTime @default(now())
+
+  @@index([characterId])
 }
