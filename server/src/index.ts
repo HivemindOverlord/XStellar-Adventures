@@ -7,6 +7,7 @@ import type { ClientToServerEvents, ServerToClientEvents } from "@xstellar/share
 import { authRouter } from "./routes/auth.js";
 import { characterRouter } from "./routes/character.js";
 import { shopRouter } from "./routes/shop.js";
+import { lootRouter } from "./routes/loot.js";
 import { registerSocketHandlers } from "./game/socketHandlers.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -20,6 +21,7 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 app.use("/api/auth", authRouter);
 app.use("/api/character", characterRouter);
 app.use("/api/shop", shopRouter);
+app.use("/api/loot", lootRouter);
 
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {

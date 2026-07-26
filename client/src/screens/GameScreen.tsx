@@ -9,6 +9,7 @@ import { EquipmentPanel } from "../ui/EquipmentPanel.js";
 import { ShopPanel } from "../ui/ShopPanel.js";
 import { StatAllocationPanel } from "../ui/StatAllocationPanel.js";
 import { CampaignPanel } from "../ui/CampaignPanel.js";
+import { BattleOddsPanel } from "../ui/BattleOddsPanel.js";
 import { HowToPlayPanel } from "../ui/HowToPlayPanel.js";
 import { fetchMyCharacter, setBotMatching } from "../api/character.js";
 
@@ -30,6 +31,7 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
   const [showShop, setShowShop] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showCampaign, setShowCampaign] = useState(false);
+  const [showOdds, setShowOdds] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   useEffect(() => {
@@ -138,6 +140,7 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
           </button>
           <button onClick={() => setShowShop((v) => !v)}>{showShop ? "Hide Shop" : "Shop"}</button>
           <button onClick={() => setShowStats((v) => !v)}>{showStats ? "Hide Stats" : "Stats"}</button>
+          <button onClick={() => setShowOdds((v) => !v)}>{showOdds ? "Hide Battle Odds" : "Battle Odds"}</button>
           <p className="find-match-explainer">
             Find Match queues you for a live PvP battle against another player with similar power. Prefer to
             fight the story instead? Try Campaign. Nothing to equip or spend yet? Battles and chapters are how
@@ -173,6 +176,8 @@ export function GameScreen({ onChangeCharacter }: GameScreenProps) {
       {status === "idle" && showShop && character && (
         <ShopPanel token={auth.token} character={character} onCharacterChange={setCharacter} />
       )}
+
+      {status === "idle" && showOdds && character && <BattleOddsPanel token={auth.token} character={character} />}
 
       {status === "queued" && <p>Searching for an opponent…</p>}
 
