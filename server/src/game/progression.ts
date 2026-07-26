@@ -1,5 +1,7 @@
 import type { BattleReward, BattleState, Character, EquipmentItem, EquipmentSlot, Rarity } from "@xstellar/shared";
 import { applyXp, EQUIPMENT } from "@xstellar/shared";
+import { prisma } from "../db/prisma.js";
+import { isBotCharacter } from "./botCharacter.js";
 
 function xpForVictory(opponentLevel: number): number {
   return 30 + opponentLevel * 10;
@@ -79,7 +81,7 @@ function pickEquipmentDrop(character: Character, slot: EquipmentSlot, opponentLe
 // Rolls one loot chance per equipment slot for the winner. Dry streaks act as a
 // pity counter: the longer a slot goes without a drop, the more likely the next
 // battle grants one; a successful drop resets that slot's counter to zero.
-function rollItemDrops(character: Character, opponentLevel: number): string[] {
+async function rollItemDrops(character: Character, opponentLevel: number): Promise<string[]> {
   const dropped: string[] = [];
 
   for (const slot of EQUIPMENT_SLOTS) {
@@ -89,7 +91,18 @@ function rollItemDrops(character: Character, opponentLevel: number): string[] {
     if (Math.random() < chance) {
       const item = pickEquipmentDrop(character, slot, opponentLevel);
       if (item) {
-        character.inventory[item.id] = (character.inventory[item.id] ?? 0) + 1;
+        // Bot opponents have no Character row to satisfy the instance's FK, and their
+        // rewards are never persisted anyway (see finishBattle's isBotCharacter filter).
+        if (!isBotCharacter(character)) {
+          await prisma.characterEquipmentInstance.create({
+            data: {
+              characterId: character.id,
+              catalogItemId: item.id,
+              acquiredVia: "loot",
+              purchasedDate: null,
+            },
+          });
+        }
         character[field] = 0;
         dropped.push(item.id);
         continue;
@@ -102,7 +115,7 @@ function rollItemDrops(character: Character, opponentLevel: number): string[] {
   return dropped;
 }
 
-export function grantBattleRewards(state: BattleState): Record<string, BattleReward> {
+export async function grantBattleRewards(state: BattleState): Promise<Record<string, BattleReward>> {
   const rewards: Record<string, BattleReward> = {};
 
   if (state.phase === "victory" || state.phase === "defeat") {
@@ -116,7 +129,7 @@ export function grantBattleRewards(state: BattleState): Record<string, BattleRew
       const currencyAmount = won
         ? driftmetalForVictory(opponentLevel, c.character.currentWinStreak)
         : driftmetalForDefeat(opponentLevel);
-      const itemsDropped = won ? rollItemDrops(c.character, opponentLevel) : [];
+      const itemsDropped = won ? await rollItemDrops(c.character, opponentLevel) : [];
 
       const xpReward = applyXp(c.character, xpAmount);
       c.character.currency += currencyAmount;
