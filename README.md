@@ -67,6 +67,14 @@ The client is also wrapped as a native Android app via [Capacitor](https://capac
 
 See [CLOUD_SETUP.md](./CLOUD_SETUP.md) for the one-time setup (Neon, Railway, Vercel, Google Play service account, GitHub secrets) and how releases work going forward.
 
+## UI clarity convention
+
+The client intentionally has no forced tutorial — new screens are expected to explain
+themselves through in-context copy and empty-state messaging instead. See
+[CLARITY.md](./CLARITY.md) for the convention to follow when adding a new screen or panel,
+and the in-app **How to Play** reference (`client/src/ui/HowToPlayPanel.tsx`, linked from
+`GameScreen`'s header) for the player-facing version.
+
 ## Current gameplay loop
 
 1. Register / log in.
