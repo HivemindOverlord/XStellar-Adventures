@@ -58,6 +58,15 @@ export function BattleUI({ state, isMyTurn, myCharacter, reward, onAction }: Bat
         </button>
       </div>
 
+      {knownSkills.length === 0 && (
+        <p className="battle-empty-note">
+          No skills yet — earn stat points from battles and spend them in the Stats panel to unlock a class.
+        </p>
+      )}
+      {carriedItems.length === 0 && (
+        <p className="battle-empty-note">No items in your inventory — buy consumables from the Shop.</p>
+      )}
+
       {reward && (
         <div className="battle-reward">
           <div>
