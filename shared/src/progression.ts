@@ -1,10 +1,12 @@
-import type { Character, Stats } from "./character.js";
+import type { Character } from "./character.js";
 import type { XpGainResult } from "./battle.js";
 
 export function xpToNextLevel(level: number): number {
   return Math.round(20 * level ** 1.6);
 }
 
+// Level-ups grant a player-directed stat point instead of auto-growing stats — see
+// allocateStatPoint (server/src/game/statAllocation.ts) for how points get spent.
 export function applyXp(character: Character, amount: number): XpGainResult {
   character.xp += amount;
   let leveledUp = false;
@@ -13,17 +15,8 @@ export function applyXp(character: Character, amount: number): XpGainResult {
     character.xp -= xpToNextLevel(character.level);
     character.level += 1;
     leveledUp = true;
-    growStats(character.stats);
+    character.unallocatedStatPoints += 1;
   }
 
   return { xpGained: amount, leveledUp, newLevel: character.level };
-}
-
-function growStats(stats: Stats): void {
-  stats.maxHp += 8;
-  stats.maxMp += 3;
-  stats.attack += 2;
-  stats.defense += 2;
-  stats.magic += 2;
-  stats.speed += 1;
 }

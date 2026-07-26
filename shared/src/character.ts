@@ -15,9 +15,13 @@ export interface Character {
   id: string;
   ownerId: string;
   name: string;
-  jobClass: JobClass;
+  // Informational only ("first class unlocked," for display) — skill access is driven
+  // entirely by unlockedClasses, not this field. Null until the first threshold is crossed.
+  jobClass: JobClass | null;
   level: number;
   xp: number;
+  unallocatedStatPoints: number;
+  unlockedClasses: JobClass[];
   currentWinStreak: number;
   stats: Stats;
   skillIds: string[];

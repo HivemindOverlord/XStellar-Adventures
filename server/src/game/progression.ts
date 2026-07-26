@@ -68,7 +68,7 @@ function weightedPick<T>(items: T[], weights: number[]): T {
 
 function pickEquipmentDrop(character: Character, slot: EquipmentSlot, opponentLevel: number): EquipmentItem | undefined {
   const candidates = Object.values(EQUIPMENT).filter(
-    (item) => item.slot === slot && (!item.classLock || item.classLock === character.jobClass),
+    (item) => item.slot === slot && (!item.classLock || character.unlockedClasses.includes(item.classLock)),
   );
   if (candidates.length === 0) return undefined;
 

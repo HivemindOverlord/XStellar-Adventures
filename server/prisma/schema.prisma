@@ -13,16 +13,31 @@ model User {
   passwordHash String
   createdAt    DateTime    @default(now())
   characters   Character[]
+
+  // Account-level character-slot cap. Starts at 1; a future Story & PvE Campaign agent
+  // grants more via grantCharacterSlot() when the player clears specific chapters.
+  unlockedCharacterSlots Int @default(1)
+
+  // Which of this account's characters is currently "active" for battle/equip/shop
+  // routes that don't take an explicit characterId. Not a Prisma relation (kept as a
+  // plain id) so ownership validation stays in application code.
+  activeCharacterId String?
 }
 
 model Character {
-  id        String @id @default(uuid())
-  owner     User   @relation(fields: [ownerId], references: [id])
+  id        String   @id @default(uuid())
+  owner     User     @relation(fields: [ownerId], references: [id])
   ownerId   String
   name      String
-  jobClass  String
+  // Ordering key for the character-select screen (a UUID id isn't creation-ordered).
+  createdAt DateTime @default(now())
+  // Null until the first class-unlock threshold is crossed. Informational display field
+  // ("first class unlocked") once set — skill access is driven by unlockedClasses.
+  jobClass  String?
   level     Int    @default(1)
   xp        Int    @default(0)
+  unallocatedStatPoints Int  @default(0)
+  unlockedClasses       Json @default("[]")
   currentWinStreak Int @default(0)
   dryStreakWeapon    Int @default(0)
   dryStreakArmor     Int @default(0)

@@ -1,4 +1,4 @@
-import type { Character, Stats } from "./character.js";
+import type { Character, JobClass, Stats } from "./character.js";
 
 export type EquipmentSlot = "weapon" | "armor" | "accessory";
 
@@ -10,7 +10,7 @@ export interface EquipmentItem {
   name: string;
   slot: EquipmentSlot;
   rarity: Rarity;
-  classLock?: Character["jobClass"];
+  classLock?: JobClass;
   statBonuses: Partial<Stats>;
 }
 

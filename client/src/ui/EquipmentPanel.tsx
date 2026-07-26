@@ -84,7 +84,7 @@ export function EquipmentPanel({ token, character, equipmentInstances, onCharact
         {equipmentInstances.map((instance) => {
           const item = EQUIPMENT[instance.catalogItemId];
           if (!item) return null;
-          const classLocked = item.classLock !== undefined && item.classLock !== character.jobClass;
+          const classLocked = item.classLock !== undefined && !character.unlockedClasses.includes(item.classLock);
           return (
             <li key={instance.id}>
               {item.name} ({item.slot}, {item.rarity})
